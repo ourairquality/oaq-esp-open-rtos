@@ -4,6 +4,9 @@ A community developed open source air quality data logger.
 
 Currently supporting the [Plantower](http://plantower/) PMS1003, PMS3003, PMS5003, and PMS7003 particle counters.
 
+Supports the SHT21 temperature and relative humidity sensors. This data might be important for qualifying if the air conditions support reliable PM measurement.
+
+
 ## Building
 
 Follow the build instructions for esp-open-rtos, and when the examples are running copy this code into `examples/oaq/`.
@@ -39,7 +42,5 @@ This is at the proof of concept stage.
 The URL to upload the data to and the key is hard coded, see `post.c`, and this needs to be configurable.
 
 The protocol for storing the data and uploading will no doubt need a lot of revision.
-
-Support for the SHT21 temperature and humidity sensor is being added. This data might be important for qualifying if the air conditions support reliable PM measurement.
 
 The server side code is just some hack code at this stage, it can recover the data and verify the checksums. The plan is to write CGI code in C to receive the data and validate the signature and store it on the server, and to provide an API for access to the data, which is expected to work with common and economical cPanel shared hosting.
