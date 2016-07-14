@@ -204,7 +204,7 @@ static void handle_flash_write_failure()
     uint32_t flash_index;
     if (decode_flash_sector_index(flash_sector, &flash_index)) {
         /* If the index decodes as valid then attempt to erase the sector to at
-	   least invalidate the index. */
+         * least invalidate the index. */
         sdk_spi_flash_erase_sector(flash_sector);
         taskYIELD();
         if (decode_flash_sector_index(flash_sector, &flash_index)) {

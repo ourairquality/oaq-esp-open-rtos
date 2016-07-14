@@ -1,5 +1,5 @@
 /*
- * Memory resident (RAM) buffer support.
+ * Driver for the SHT2x temperature and humidity sensor.
  *
  * Licensed under the Apache License, Version 2.0, January 2004 (the
  * "License"); you may not use this file except in compliance with the
@@ -17,19 +17,4 @@
  *
  */
 
-extern uint32_t get_buffer_to_write(uint8_t *buf, uint32_t *start);
-extern void note_buffer_written(uint32_t index, uint32_t size);
-extern uint32_t dbuf_append(uint32_t index, uint16_t code, uint8_t *data, uint32_t size,
-                            int low_res_time, int no_repeat);
-
-/* Plantower PMS3003 */
-#define DBUF_EVENT_PMS3003 1
-
-/* Plantower PMS1003 PMS5003 PMS7003 */
-#define DBUF_EVENT_PMS5003 2
-
-#define DBUF_EVENT_POST_TIME 3
-
-#define DBUF_EVENT_ESP8266_STARTUP 4
-
-#define DBUF_EVENT_SHT2X_TEMP_HUM 5
+extern void init_sht2x();

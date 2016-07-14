@@ -56,6 +56,7 @@
 #include "flash.h"
 #include "post.h"
 #include "pms.h"
+#include "sht21.h"
 
 
 #define DBUF_DATA_SIZE 4096
@@ -350,7 +351,6 @@ uint32_t get_buffer_to_write(uint8_t *buf, uint32_t *start)
             xSemaphoreGive(dbufs_sem);
             return size;
         }
-        // Can this happen?
         xSemaphoreGive(dbufs_sem);
         return 0;
     }
@@ -471,7 +471,7 @@ void user_init(void)
             break;
         last_index = new_index;
     }
-    
+
     init_network();
 
     init_blink();
@@ -480,4 +480,5 @@ void user_init(void)
     blink_green();
 
     init_pms();
+    init_sht2x();
 }
