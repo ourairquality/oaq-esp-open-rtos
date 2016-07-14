@@ -4,7 +4,7 @@ A community developed open source air quality data logger.
 
 Currently supporting the [Plantower](http://plantower/) PMS1003, PMS3003, PMS5003, and PMS7003 particle counters.
 
-Supports the SHT21 temperature and relative humidity sensors. This data might be important for qualifying if the air conditions support reliable PM measurement.
+Supports the SHT2x temperature and relative humidity sensors. This data might be important for qualifying if the air conditions support reliable PM measurement.
 
 
 ## Building
@@ -30,7 +30,7 @@ The following will build the code and flash a device on Linux.
 
 * The compressed sectors are HTTP-POSTed to a server. The current head sector is periodically posted to the server too to keep it updated and only the new data is posted. The server response can request re-sending of sectors still stored on the device to handle data loss at the server. The server can not affected the data stored on the device or the logging of the data to flash as a safety measure.
 
-* The ESP8266 Real-Time-Clock (RTC) counter is logged with every event. The server response includes the real time and response events are logged allowing estimation of the real time of events in post-analysis. Support for logging a button press will be added to all people to synchronize the start of logging manually.
+* The ESP8266 Real-Time-Clock (RTC) counter is logged with every event. The server response includes the real time and response events are logged allowing estimation of the real time of events in post-analysis. Support for logging a button press will be added to allow people to synchronize logging times manually.
 
 * The data posted to the server is signed using the MAC-SHA3 algorithm ensuring integrity of the data and preventing forgery of data posted to the server.
 
