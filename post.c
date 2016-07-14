@@ -37,8 +37,8 @@
 #include "flash.h"
 #include "sha3.h"
 
-#define WEB_SERVER "my.webserver.com"
-#define WEB_PORT "8000"
+#define WEB_SERVER "ourairquality.org"
+#define WEB_PORT "80"
 #define SENSOR_ID "pm3003a"
 #define WEB_PATH "/sensors/"SENSOR_ID"/data"
 
