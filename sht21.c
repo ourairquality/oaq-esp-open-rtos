@@ -78,7 +78,7 @@ static uint8_t sht2x_check_crc(uint8_t data[], uint8_t num_bytes, uint8_t checks
  * Measure the temperature if temp_rh is 0 and the relative humidity
  * if temp_rh is 1. Return 0 on success and 1 if there is an error.
  */
-static uint8_t sht2x_measure_poll(int temp_rh, uint8_t data[])
+static uint8_t sht2x_measure_poll(int temp_rh, uint8_t data[], uint8_t *crc)
 {
     i2c_start();
     int res = i2c_write(I2C_ADR_W);
@@ -101,11 +101,26 @@ static uint8_t sht2x_measure_poll(int temp_rh, uint8_t data[])
 
     data[0] = i2c_read(0);
     data[1] = i2c_read(0);
-    uint8_t checksum = i2c_read(1);
-    res = sht2x_check_crc(data, 2, checksum);
+    *crc = i2c_read(1);
+    res = sht2x_check_crc(data, 2, *crc);
     i2c_stop();
     return res;
 }
+
+/* LEB-128 signed encoding. */
+static uint8_t encode_leb128_signed(int32_t n, uint8_t *buf)
+{
+    uint8_t len = 0;
+    while (1) {
+        if (-0x40 <= n && n <= 0x3f) {
+            buf[len++] = n & 0x7f;
+            return len;
+        }
+        buf[len++] = (n & 0x7f) | 0x80;
+        n >>= 7;
+    }
+}
+
 
 static void sht2x_read_task(void *pvParameters)
 {
@@ -119,7 +134,8 @@ static void sht2x_read_task(void *pvParameters)
 
         uint8_t data[4];
 
-        if (sht2x_measure_poll(0, data)) {
+        uint8_t temp_crc;
+        if (sht2x_measure_poll(0, data, &temp_crc)) {
             blink_red();
             continue;
         }
@@ -127,7 +143,8 @@ static void sht2x_read_task(void *pvParameters)
         uint16_t temp = ((uint16_t) data[0]) << 8 | data[1];
         temp >>= 2; /* Strip the two low status bits */
 
-        if (sht2x_measure_poll(1, &data[2])) {
+        uint8_t rh_crc;
+        if (sht2x_measure_poll(1, &data[2], &rh_crc)) {
             blink_red();
             continue;
         }
@@ -136,12 +153,14 @@ static void sht2x_read_task(void *pvParameters)
         rh >>= 2; /* Stip the two low status bits */
 
         while (1) {
-            uint8_t outbuf[4];
-            outbuf[0] = temp;
-            outbuf[1] = temp >> 8;
-            outbuf[2] = rh;
-            outbuf[3] = rh >> 8;
-            int len = sizeof(outbuf);
+            uint8_t outbuf[8];
+            /* Delta encoding */
+            int32_t temp_delta = (int32_t)temp - (int32_t)last_temp;
+            uint8_t len = encode_leb128_signed(temp_delta, outbuf);
+            int32_t rh_delta = (int32_t)rh - (int32_t)last_rh;
+            len += encode_leb128_signed(rh_delta, &outbuf[len]);
+            /* Include the xor of both crcs */
+            outbuf[len++] = temp_crc ^ rh_crc;
             int32_t code = DBUF_EVENT_SHT2X_TEMP_HUM;
             uint32_t new_index = dbuf_append(last_index, code, outbuf, len, 1, 0);
             if (new_index == last_index)
