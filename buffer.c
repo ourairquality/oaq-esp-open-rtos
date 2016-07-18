@@ -360,8 +360,8 @@ uint32_t get_buffer_to_write(uint8_t *buf, uint32_t *start)
     dbuf_t *head = &dbufs[dbufs_head];
     if (head->size > 8 && head->size > head->save_size) {
         uint32_t delta = RTC.COUNTER - head->write_time;
-        // Currently about 60 seconds.
-        if (delta > 10000000) {
+        // Currently about 120 seconds.
+        if (delta > 20000000) {
             uint32_t j;
             size = head->size;
             for (j = 0; j < DBUF_DATA_SIZE; j++)

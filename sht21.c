@@ -26,6 +26,7 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "i2c/i2c.h"
+#include "bmp180/bmp180.h"
 
 #include <espressif/esp_misc.h>
 #include "espressif/esp8266/gpio_register.h"
@@ -121,6 +122,7 @@ static uint8_t encode_leb128_signed(int32_t n, uint8_t *buf)
     }
 }
 
+
 
 static void sht2x_read_task(void *pvParameters)
 {
@@ -128,6 +130,12 @@ static void sht2x_read_task(void *pvParameters)
     uint32_t last_index = 0;
     uint16_t last_temp = 0;
     uint16_t last_rh = 0;
+
+    bmp180_constants_t bmp180_constants;
+    bool bmp180_available = bmp180_is_available() &&
+        bmp180_fillInternalConstants(&bmp180_constants);
+    uint32_t last_bmp180_temp = 0;
+    uint32_t last_bmp180_pressure = 0;
 
     for (;;) {
         vTaskDelay(10000 / portTICK_RATE_MS);
@@ -180,8 +188,48 @@ static void sht2x_read_task(void *pvParameters)
          * class append. */
         last_temp = temp;
         last_rh = rh;
+
+
+        /* Hack in the BMP180 support here as the I2C driver is not
+         * multi-task safe. */
+
+        if (bmp180_available) {
+            int32_t temperature;
+            uint32_t pressure;
+            if (bmp180_measure(&bmp180_constants, &temperature, &pressure, 3)) {
+                while (1) {
+                    uint8_t outbuf[12];
+                    /* Delta encoding */
+                    int32_t temp_delta = (int32_t)temperature - (int32_t)last_bmp180_temp;
+                    uint8_t len = encode_leb128_signed(temp_delta, outbuf);
+                    int32_t pressure_delta = (int32_t)pressure - (int32_t)last_bmp180_pressure;
+                    len += encode_leb128_signed(pressure_delta, &outbuf[len]);
+                    int32_t code = DBUF_EVENT_BMP180_TEMP_PRESSURE;
+                    uint32_t new_index = dbuf_append(last_index, code, outbuf, len, 1, 0);
+                    if (new_index == last_index)
+                        break;
+
+                    /* Moved on to a new buffer. Reset the delta encoding
+                     * state and retry. */
+                    last_index = new_index;
+                    last_bmp180_temp = 0;
+                    last_bmp180_pressure = 0;
+                };
+
+                blink_green();
+
+                /* Commit the values logged. Note this is the only task
+                 * accessing this state so these updates are synchronized
+                 * with the last event of this class append. */
+                last_bmp180_temp = temperature;
+                last_bmp180_pressure = pressure;
+            }
+        }
     }
 }
+
+
+
 
 void init_sht2x()
 {
