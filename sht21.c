@@ -134,6 +134,7 @@ static void sht2x_read_task(void *pvParameters)
     bmp180_constants_t bmp180_constants;
     bool bmp180_available = bmp180_is_available() &&
         bmp180_fillInternalConstants(&bmp180_constants);
+    uint32_t last_bmp180_index = 0;
     uint32_t last_bmp180_temp = 0;
     uint32_t last_bmp180_pressure = 0;
 
@@ -205,13 +206,13 @@ static void sht2x_read_task(void *pvParameters)
                     int32_t pressure_delta = (int32_t)pressure - (int32_t)last_bmp180_pressure;
                     len += encode_leb128_signed(pressure_delta, &outbuf[len]);
                     int32_t code = DBUF_EVENT_BMP180_TEMP_PRESSURE;
-                    uint32_t new_index = dbuf_append(last_index, code, outbuf, len, 1, 0);
-                    if (new_index == last_index)
+                    uint32_t new_index = dbuf_append(last_bmp180_index, code, outbuf, len, 1, 0);
+                    if (new_index == last_bmp180_index)
                         break;
 
                     /* Moved on to a new buffer. Reset the delta encoding
                      * state and retry. */
-                    last_index = new_index;
+                    last_bmp180_index = new_index;
                     last_bmp180_temp = 0;
                     last_bmp180_pressure = 0;
                 };
