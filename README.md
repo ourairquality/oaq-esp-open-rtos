@@ -4,9 +4,9 @@ A community developed open source air quality data logger.
 
 Currently supporting the [Plantower](http://plantower/) PMS1003, PMS3003, PMS5003, and PMS7003 particle counters.
 
-Supports the SHT2x temperature and relative humidity sensors. This data might be important for qualifying if the air conditions support reliable PM measurement.
+Supports the SHT2x temperature and relative humidity sensors which is auto-detected and used if available. This data might be important for qualifying if the air conditions support reliable PM measurement.
 
-Supports the BMP180 air pressure sensor on the same I2C bus as the SHT2x and auto detected.
+Supports the BMP180 air pressure sensor on the same I2C bus as the SHT2x also auto detected.
 
 
 ## Building
