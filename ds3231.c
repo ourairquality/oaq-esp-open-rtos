@@ -1,0 +1,167 @@
+/*
+ * Driver for the DS3231 real time clock.
+ *
+ * Licensed under the Apache License, Version 2.0, January 2004 (the
+ * "License"); you may not use this file except in compliance with the
+ * License.  You may obtain a copy of the License at
+ *      http://www.apache.org/licenses/
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE CONTRIBUTORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS WITH THE SOFTWARE.
+ *
+ */
+
+#include <stdint.h>
+#include <sys/types.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <esp/uart.h>
+#include <stdio.h>
+#include <time.h>
+#include "FreeRTOS.h"
+#include "task.h"
+#include "semphr.h"
+#include "i2c/i2c.h"
+#include "bmp180/bmp180.h"
+#include "ds3231/ds3231.h"
+
+#include <espressif/esp_misc.h>
+#include "espressif/esp8266/gpio_register.h"
+
+#include "buffer.h"
+#include "i2c.h"
+#include "leds.h"
+
+
+
+/*
+ * Handle a time in a response from a server.
+ */
+void ds3231_note_time(time_t recv_time)
+{
+    struct tm tm;
+    bool ds3231_available = ds3231_getTime(&tm);
+    if (ds3231_available) {
+        time_t clock_time = mktime(&tm);
+        /*
+         * If the clock time is less that the server response time
+         * then the clock must be slow so in that case update the
+         * clock time. If the clock time is behind then this brings it
+         * forward to within the minimum network delay of the server
+         * time.
+         *
+         * If the clock time is greater than the server response time
+         * then this might just be due to the delay replying, and this
+         * could vary. But if it is more than four seconds ahead then
+         * update the clock time.
+         */
+        if (clock_time < recv_time || clock_time > recv_time + 4) {
+            gmtime_r(&recv_time, &tm);
+            if (ds3231_setTime(&tm)) {
+                /*
+                 * Log all steps in the clock time.
+                 */
+                uint32_t last_index = dbuf_head_index();
+                while (1) {
+                    uint8_t outbuf[8];
+                    outbuf[0] = clock_time;
+                    outbuf[1] = clock_time >> 8;
+                    outbuf[2] = clock_time >> 16;
+                    outbuf[3] = clock_time >> 24;
+                    outbuf[4] = recv_time;
+                    outbuf[5] = recv_time >> 8;
+                    outbuf[6] = recv_time >> 16;
+                    outbuf[7] = recv_time >> 24;
+                    int32_t code = DBUF_EVENT_DS3231_TIME_STEP;
+                    uint32_t new_index = dbuf_append(last_index, code, outbuf, sizeof(outbuf), 1, 0);
+                    if (new_index == last_index)
+                        break;
+
+                    /* Moved on to a new buffe, retry. */
+                    last_index = new_index;
+                };
+            }
+        }
+    }
+}
+
+static void ds3231_read_task(void *pvParameters)
+{
+    /* Delta encoding state. */
+    uint32_t last_index = 0;
+    time_t last_clock_time = 0;
+    int16_t last_temperature = 0;
+
+    xSemaphoreTake(i2c_sem, portMAX_DELAY);
+    struct tm time;
+    bool ds3231_available = ds3231_getTime(&time);
+    xSemaphoreGive(i2c_sem);
+    
+    if (!ds3231_available)
+        vTaskDelete(NULL);
+
+    for (;;) {
+        vTaskDelay(180000 / portTICK_RATE_MS);
+
+        xSemaphoreTake(i2c_sem, portMAX_DELAY);
+
+        if (!ds3231_getTime(&time)) {
+            xSemaphoreGive(i2c_sem);
+            blink_red();
+            continue;
+        }
+
+        time_t clock_time = mktime(&time);
+        int16_t temperature;
+        if (!ds3231_getTempInteger(&temperature)) {
+            xSemaphoreGive(i2c_sem);
+            blink_red();
+            continue;
+        }
+
+        xSemaphoreGive(i2c_sem);
+
+        while (1) {
+            uint8_t outbuf[12];
+            /* Delta encoding */
+            uint32_t time_delta = clock_time - last_clock_time;
+            uint32_t len = emit_leb128(outbuf, 0, time_delta);
+            int32_t temp_delta = (int32_t)temperature - (int32_t)last_temperature;
+            len = emit_leb128_signed(outbuf, len, temp_delta);
+            int32_t code = DBUF_EVENT_DS3231_TIME_TEMP;
+            uint32_t new_index = dbuf_append(last_index, code, outbuf, len, 1, 0);
+            if (new_index == last_index)
+                break;
+
+            /* Moved on to a new buffer. Reset the delta encoding
+             * state and retry. */
+            last_index = new_index;
+            last_clock_time = 0;
+            last_temperature = 0;
+        };
+
+        blink_green();
+
+        /*
+         * Commit the values logged. Note this is the only task
+         * accessing this state so these updates are synchronized
+         * with the last event of this class append.
+         */
+        last_clock_time = clock_time;
+        last_temperature = temperature;
+    }
+}
+
+
+
+
+void init_ds3231()
+{
+    xTaskCreate(&ds3231_read_task, (signed char *)"ds3231_read_task", 256, NULL, 2, NULL);
+}
