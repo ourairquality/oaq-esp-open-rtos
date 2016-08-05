@@ -18,6 +18,6 @@
  *
  */
 
-extern void init_network();
+void init_network();
 
 extern xSemaphoreHandle post_data_sem;

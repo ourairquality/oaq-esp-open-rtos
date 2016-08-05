@@ -17,8 +17,8 @@
  *
  */
 
-extern void init_blink();
-extern void blink_green();
-extern void blink_blue();
-extern void blink_red();
-extern void blink_white();
+void init_blink();
+void blink_green();
+void blink_blue();
+void blink_red();
+void blink_white();

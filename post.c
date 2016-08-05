@@ -20,6 +20,7 @@
 #include "espressif/esp_common.h"
 
 #include <string.h>
+#include <time.h>
 
 #include "FreeRTOS.h"
 #include "task.h"
@@ -36,26 +37,16 @@
 #include "buffer.h"
 #include "flash.h"
 #include "sha3.h"
+#include "ds3231.h"
 
+#include "config.h"
+
+/* Fill in your server and sensor network configuration here. */
 #define WEB_SERVER "ourairquality.org"
 #define WEB_PORT "80"
-#define SENSOR_ID "pm3003a"
-#define WEB_PATH "/sensors/"SENSOR_ID"/data"
-
-/* For signaling and waiting for data to post. */
-xSemaphoreHandle post_data_sem = NULL;
-
-/*
- * A single buffer is allocated to hold the HTTP data to be sent and it is large
- * enough for the HTTP header plus the content including a signature suffix. The
- * content is located at a fixed position into the buffer and word aligned so
- * the flash data can be copied directly to this buffer. For the computation of
- * a MAC-SHA3 signature the key prefix is copied before the data so the prefix
- * allocation needs to be large enough for this too.
- */
-
+#define WEB_PATH "/cgi-bin/recv"
+#define SENSOR_ID 0x12345678
 #define KEY_SIZE 287
-#define SIGNATURE_SIZE 28
 static uint8_t sha3_key[KEY_SIZE] =
 {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 
  0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 
@@ -76,13 +67,38 @@ static uint8_t sha3_key[KEY_SIZE] =
  0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 
  0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E};
 
+
+/* For signaling and waiting for data to post. */
+xSemaphoreHandle post_data_sem = NULL;
+
+/*
+ * A single buffer is allocated to hold the HTTP data to be sent and it is large
+ * enough for the HTTP header plus the content including a signature suffix. The
+ * content is located at a fixed position into the buffer and word aligned so
+ * the flash data can be copied directly to this buffer. For the computation of
+ * a MAC-SHA3 signature the key prefix is copied before the data so the prefix
+ * allocation needs to be large enough for this too.
+ */
+
+#define SIGNATURE_SIZE 28
+
 #define PREFIX_SIZE 288 /* At least KEY_SIZE */
-#define POST_BUFFER_SIZE (PREFIX_SIZE + 4 + 4 + 4 + 4096 + SIGNATURE_SIZE)
+#define POST_BUFFER_SIZE (PREFIX_SIZE + 4 + 4 + 4 + 4 + 4096 + SIGNATURE_SIZE)
 static uint8_t post_buf[POST_BUFFER_SIZE];
+
+#define MAX_HOLD_OFF_TIME 1800000 /* 30 minutes */
 
 static void post_data_task(void *pvParameters)
 {
     uint32_t last_index = 0;
+    uint32_t last_recv_sec = 0;
+
+    /*
+     * A retry hold-off time in msec. Reset to zero upon a success and otherwise
+     * increased on each retry. This is intended avoid loading the network and
+     * server with retries if there is an error processing a post request.
+     */
+    uint32_t hold_off_time = 0;
 
     while (1) {
         xSemaphoreTake(post_data_sem, 5000 / portTICK_RATE_MS);
@@ -96,14 +112,28 @@ static void post_data_task(void *pvParameters)
             if (!maybe_buffer_to_post())
                 break;
 
-            /* Try connecting to the server before requesting the actual data to
-             * post as this might take some time to succeed and by then there
-             * might be much more data to send. Also a time is sent and the
-             * intention is that it is as close to the time posted as possible
-             * and it can not be patched in just before sending as it is part of
-             * the signed message.
+            /* Hold off if retrying. */
+            if (hold_off_time > MAX_HOLD_OFF_TIME)
+                hold_off_time = MAX_HOLD_OFF_TIME;
+            vTaskDelay(hold_off_time / portTICK_RATE_MS);
+            hold_off_time += (hold_off_time >> 2) + 1000;
+
+            /*
+             * Wait until connected, and try connecting to the server before
+             * requesting the actual data to post as this might take some time
+             * to succeed and by then there might be much more data to
+             * send. Also a time is sent and the intention is that it is as
+             * close to the time posted as possible and it can not be patched in
+             * just before sending as it is part of the signed message.
              */
             
+            while (1) {
+                uint8_t connect_status = sdk_wifi_station_get_connect_status();
+                if (connect_status == STATION_GOT_IP)
+                    break;
+                vTaskDelay(1000 / portTICK_RATE_MS);
+            }
+
             const struct addrinfo hints = {
                 .ai_family = AF_INET,
                 .ai_socktype = SOCK_STREAM,
@@ -114,29 +144,28 @@ static void post_data_task(void *pvParameters)
             if (err != 0 || res == NULL) {
                 if (res)
                     freeaddrinfo(res);
-                vTaskDelay(1000 / portTICK_RATE_MS);
                 continue;
             }
 
             int s = socket(res->ai_family, res->ai_socktype, 0);
             if (s < 0) {
                 freeaddrinfo(res);
-                vTaskDelay(1000 / portTICK_RATE_MS);
                 continue;
             }
 
             if (connect(s, res->ai_addr, res->ai_addrlen) != 0) {
                 close(s);
                 freeaddrinfo(res);
-                vTaskDelay(4000 / portTICK_RATE_MS);
                 continue;
             }
 
             freeaddrinfo(res);
 
-            /* The buffer to copy the data into needs to be aligned as the read
-             * of the flash copies directly into it. */
-            uint32_t size = get_buffer_to_post(&index, &start, &post_buf[PREFIX_SIZE + 12]);
+            /*
+             * The buffer to copy the data into needs to be aligned because
+             * reading the flash copies directly into it the buffer.
+             */
+            uint32_t size = get_buffer_to_post(&index, &start, &post_buf[PREFIX_SIZE + 16]);
 
             if (size == 0) {
                 close(s);
@@ -144,33 +173,39 @@ static void post_data_task(void *pvParameters)
             }
 
             /*
-             * The index of the record, and the index at which this content
-             * starts within the record are prefixed.
+             * The sensor ID, and the index of the record, the local time, and
+             * the index at which this content starts within the record are
+             * prefixed.
              */
+            uint32_t sensor_id = SENSOR_ID;
+            post_buf[PREFIX_SIZE + 0] = sensor_id;
+            post_buf[PREFIX_SIZE + 1] = sensor_id >>  8;
+            post_buf[PREFIX_SIZE + 2] = sensor_id >> 16;
+            post_buf[PREFIX_SIZE + 3] = sensor_id >> 24;
 
             uint32_t time = RTC.COUNTER;
-            post_buf[PREFIX_SIZE + 0] = time;
-            post_buf[PREFIX_SIZE + 1] = time >>  8;
-            post_buf[PREFIX_SIZE + 2] = time >> 16;
-            post_buf[PREFIX_SIZE + 3] = time >> 24;
+            post_buf[PREFIX_SIZE + 4] = time;
+            post_buf[PREFIX_SIZE + 5] = time >>  8;
+            post_buf[PREFIX_SIZE + 6] = time >> 16;
+            post_buf[PREFIX_SIZE + 7] = time >> 24;
 
-            post_buf[PREFIX_SIZE + 4] = index;
-            post_buf[PREFIX_SIZE + 5] = index >>  8;
-            post_buf[PREFIX_SIZE + 6] = index >> 16;
-            post_buf[PREFIX_SIZE + 7] = index >> 24;
+            post_buf[PREFIX_SIZE + 8] = index;
+            post_buf[PREFIX_SIZE + 9] = index >>  8;
+            post_buf[PREFIX_SIZE + 10] = index >> 16;
+            post_buf[PREFIX_SIZE + 11] = index >> 24;
 
-            post_buf[PREFIX_SIZE + 8] = start;
-            post_buf[PREFIX_SIZE + 9] = start >>  8;
-            post_buf[PREFIX_SIZE + 10] = start >> 16;
-            post_buf[PREFIX_SIZE + 11] = start >> 24;
+            post_buf[PREFIX_SIZE + 12] = start;
+            post_buf[PREFIX_SIZE + 13] = start >>  8;
+            post_buf[PREFIX_SIZE + 14] = start >> 16;
+            post_buf[PREFIX_SIZE + 15] = start >> 24;
 
             /*
              * Firstly use the prefix area for the key to implement MAC-SHA3.
              */
             memcpy(&post_buf[PREFIX_SIZE - KEY_SIZE], sha3_key, KEY_SIZE);
             FIPS202_SHA3_224(&post_buf[PREFIX_SIZE - KEY_SIZE],
-                             KEY_SIZE + 12 + size,
-                             &post_buf[PREFIX_SIZE + 12 + size]);
+                             KEY_SIZE + 16 + size,
+                             &post_buf[PREFIX_SIZE + 16 + size]);
 
             /*
              * Next use the prefix area for the HTTP header.
@@ -182,7 +217,7 @@ static void post_data_task(void *pvParameters)
                                             "Content-Type: application/octet-stream\r\n"
                                             "Content-Length: %d\r\n"
                                             "\r\n", WEB_PATH, WEB_SERVER, WEB_PORT,
-                                            12 + size + SIGNATURE_SIZE);
+                                            16 + size + SIGNATURE_SIZE);
             /*
              * Move the header up to meet the data.
              */
@@ -193,9 +228,8 @@ static void post_data_task(void *pvParameters)
              * Data ready to send.
              */
             if (write(s, &post_buf[PREFIX_SIZE - header_size],
-                      header_size + 12 + size + SIGNATURE_SIZE) < 0) {
+                      header_size + 16 + size + SIGNATURE_SIZE) < 0) {
                 close(s);
-                vTaskDelay(4000 / portTICK_RATE_MS);
                 continue;
             }
 
@@ -268,43 +302,60 @@ static void post_data_task(void *pvParameters)
                         (recv_buf[18] << 16) |
                         (recv_buf[19] << 24);
 
-                    if (recv_magic == 0x70F55EA8) {
+                    uint32_t magic = sensor_id ^ time;
+                    if (recv_magic == magic) {
+                        /*
+                         * Update the clock using the server response time.
+                         */
+                        ds3231_note_time(recv_sec);
+
                         /* Log the server time in it's response. This gives time
                          * stamps to the events logged to help synchronize the
                          * RTC counter to the real time. While the server could
                          * log the times to synchronize to the RTC counter, this
                          * gives some resilience against server data loss and
-                         * allows the sectors records to stand on their own.
+                         * allows the sectors recorded to stand on their own.
                          *
                          * The event time-stamp is close enough to the received
-                         * time, and include the posted time too to allow
+                         * time, and includes the posted time too to allow
                          * matching with the server recorded times and also to
                          * give the round-trip time to send and receive the post
                          * which might help estimate the accuracy. Re-use the
-                         * post_buf to build this event, the RTC time should
-                         * still be there.
+                         * post_buf to build this event.
+                         *
+                         * Skip logging this event if there was another POST
+                         * event logged in the last 60 seconds. This limits the
+                         * storage space used when a lot of sectors are posted
+                         * one after the other, and one every 60 seconds seems
+                         * adequate for the purpose of synchronizing the times.
                          */
-                        post_buf[PREFIX_SIZE + 4] = recv_sec;
-                        post_buf[PREFIX_SIZE + 5] = recv_sec >>  8;
-                        post_buf[PREFIX_SIZE + 6] = recv_sec >> 16;
-                        post_buf[PREFIX_SIZE + 7] = recv_sec >> 24;
+                        if (recv_sec > last_recv_sec + 60) {
+                            post_buf[PREFIX_SIZE + 0] = time;
+                            post_buf[PREFIX_SIZE + 1] = time >>  8;
+                            post_buf[PREFIX_SIZE + 2] = time >> 16;
+                            post_buf[PREFIX_SIZE + 3] = time >> 24;
 
-                        post_buf[PREFIX_SIZE + 8] = recv_usec;
-                        post_buf[PREFIX_SIZE + 9] = recv_usec >>  8;
-                        post_buf[PREFIX_SIZE + 10] = recv_usec >> 16;
-                        post_buf[PREFIX_SIZE + 11] = recv_usec >> 24;
+                            post_buf[PREFIX_SIZE + 4] = recv_sec;
+                            post_buf[PREFIX_SIZE + 5] = recv_sec >>  8;
+                            post_buf[PREFIX_SIZE + 6] = recv_sec >> 16;
+                            post_buf[PREFIX_SIZE + 7] = recv_sec >> 24;
 
-                        while (1) {
-                            /* Flag this for high precision time (no
-                             * truncation), and to skip logging if the immediate
-                             * prior event is the same. */
-                            uint32_t new_index = dbuf_append(last_index,
-                                                             DBUF_EVENT_POST_TIME,
-                                                             &post_buf[PREFIX_SIZE],
-                                                             12, 0, 1);
-                            if (new_index == last_index)
-                                break;
-                            last_index = new_index;
+                            post_buf[PREFIX_SIZE + 8] = recv_usec;
+                            post_buf[PREFIX_SIZE + 9] = recv_usec >>  8;
+                            post_buf[PREFIX_SIZE + 10] = recv_usec >> 16;
+                            post_buf[PREFIX_SIZE + 11] = recv_usec >> 24;
+
+                            while (1) {
+                                uint32_t new_index = dbuf_append(last_index,
+                                                                 DBUF_EVENT_POST_TIME,
+                                                                 &post_buf[PREFIX_SIZE],
+                                                                 12, 0, 1);
+                                if (new_index == last_index)
+                                    break;
+                                last_index = new_index;
+                            }
+
+                            last_recv_sec = recv_sec;
                         }
 
                         /* The server response is used to set the buffer indexes
@@ -314,17 +365,11 @@ static void post_data_task(void *pvParameters)
                          * is handled when searching for the next buffer to post
                          * so does not need limiting here. */
                         note_buffer_posted(recv_index, recv_size);
+                        hold_off_time = 0;
                     }
-                    close(s);
-                    continue;
                 }
             }
-
             close(s);
-
-            for (int countdown = 10; countdown >= 0; countdown--) {
-                vTaskDelay(1000 / portTICK_RATE_MS);
-            }
         }
     }
 }
@@ -336,10 +381,13 @@ void init_network()
         .password = WIFI_PASS,
     };
 
+#if defined(DISABLE_RADIO)
+    sdk_wifi_set_opmode(NULL_MODE);
+#else
     sdk_wifi_set_opmode(STATION_MODE);
     sdk_wifi_station_set_config(&config);
     sdk_wifi_set_sleep_type(WIFI_SLEEP_MODEM);
 
-    vSemaphoreCreateBinary(post_data_sem);
     xTaskCreate(&post_data_task, (signed char *)"post_task", 480, NULL, 1, NULL);
+#endif
 }

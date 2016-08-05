@@ -17,4 +17,4 @@
  *
  */
 
-extern void init_pms();
+void init_pms();

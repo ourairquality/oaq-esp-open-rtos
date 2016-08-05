@@ -56,7 +56,10 @@
 #include "flash.h"
 #include "post.h"
 #include "pms.h"
+#include "i2c.h"
 #include "sht21.h"
+#include "bmp180.h"
+#include "ds3231.h"
 
 
 #define DBUF_DATA_SIZE 4096
@@ -102,6 +105,13 @@ static uint32_t dbuf_index(uint32_t num)
     return index;
 }
 
+uint32_t dbuf_head_index() {
+    xSemaphoreTake(dbufs_sem, portMAX_DELAY);
+    uint32_t index = dbuf_index(dbufs_head);
+    xSemaphoreGive(dbufs_sem);
+    return index;
+}
+
 static void set_dbuf_index(uint32_t num, uint32_t index)
 {
     uint32_t *words = (uint32_t *)(dbufs[num].data);
@@ -125,6 +135,19 @@ uint32_t emit_leb128(uint8_t *buf, uint32_t start, uint64_t v)
     while (1) {
         if (v < 0x80) {
             buf[start++] = v;
+            return start;
+        }
+        buf[start++] = (v & 0x7f) | 0x80;
+        v >>= 7;
+    }
+}
+
+/* Emit a signed leb128. */
+uint32_t emit_leb128_signed(uint8_t *buf, uint32_t start, int32_t v)
+{
+    while (1) {
+        if (-0x40 <= v && v <= 0x3f) {
+            buf[start++] = v & 0x7f;
             return start;
         }
         buf[start++] = (v & 0x7f) | 0x80;
@@ -312,7 +335,6 @@ uint32_t dbuf_append(uint32_t index, uint16_t code, uint8_t *data, uint32_t size
     return index;
 }
     
-
 /*
  * Search for a buffer to write to flash. Fill the target buffer and return the
  * size currently used if there is something to send, otherwise return zero. If
@@ -438,6 +460,8 @@ void user_init(void)
 {
     uart_set_baud(0, 9600);
 
+    init_i2c();
+
     dbufs_head = 0;
     dbufs_tail = 0;
     initialize_dbuf(dbufs_head);
@@ -481,4 +505,6 @@ void user_init(void)
 
     init_pms();
     init_sht2x();
+    init_bmp180();
+    init_ds3231();
 }

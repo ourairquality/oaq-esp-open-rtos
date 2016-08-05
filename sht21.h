@@ -17,4 +17,4 @@
  *
  */
 
-extern void init_sht2x();
+void init_sht2x();

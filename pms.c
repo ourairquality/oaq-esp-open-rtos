@@ -23,11 +23,14 @@
 #include <unistd.h>
 #include <esp/uart.h>
 #include <stdio.h>
+#include <espressif/esp_system.h>
 #include "FreeRTOS.h"
 #include "task.h"
 
 #include "buffer.h"
 #include "leds.h"
+
+#include "config.h"
 
 
 
@@ -329,30 +332,12 @@ static void pms_read_task(void *pvParameters)
     }
 }
 
-static void swap_uart0_pins(int swapped)
-{
-    if (swapped) {
-        iomux_set_pullup_flags(3, 0);
-        iomux_set_function(3, 4);
-        iomux_set_pullup_flags(1, IOMUX_PIN_PULLUP);
-        iomux_set_function(1, 4);
-        DPORT.PERI_IO |= DPORT_PERI_IO_SWAP_UART0_PINS;
-    } else {
-        iomux_set_pullup_flags(5, 0);
-        iomux_set_function(5, 0);
-        iomux_set_pullup_flags(4, IOMUX_PIN_PULLUP);
-        iomux_set_function(4, 0);
-        DPORT.PERI_IO &= ~DPORT_PERI_IO_SWAP_UART0_PINS;
-    }
-}
-
-
 void init_pms()
 {
     xTaskCreate(&pms_read_task, (signed char *)"pms_read_task", 256, NULL, 3, NULL);
 
-#if 0
     /* For the nodemcu board. */
-    swap_uart0_pins(1);
+#if defined(NODEMCU)
+    sdk_system_uart_swap();
 #endif
 }
