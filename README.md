@@ -4,9 +4,15 @@ A community developed open source air quality data logger.
 
 Currently supporting the [Plantower](http://plantower/) PMS1003, PMS3003, PMS5003, and PMS7003 particle counters.
 
-Supports the SHT2x temperature and relative humidity sensors which is auto-detected and used if available. This data might be important for qualifying if the air conditions support reliable PM measurement.
+Supports a few temperature, relative humidity, and pressure sensors on the same I2C. These are auto-detected and used if available. This data might be important for qualifying if the air conditions support reliable PM measurement.
 
-Supports the BMP180 air pressure sensor on the same I2C bus as the SHT2x also auto detected.
+* BME280 temperature, relative humidity and air pressure sensor.
+
+* SHT2x temperature and relative humidity sensors. 
+
+* BMP180 temperature and air pressure sensor.
+
+The DS3231 real-time-clock is also supported on the I2C bus and used if available. The time is logged periodically and synchronsized to the time that the http server sends in its responses. This can be very helpful when logging data away from Wifi and Internet access so that measurments are correctly time-stamped.
 
 
 ## Building
@@ -32,7 +38,7 @@ The following will build the code and flash a device on Linux.
 
 * The compressed sectors are HTTP-POSTed to a server. The current head sector is periodically posted to the server too to keep it updated and only the new data is posted. The server response can request re-sending of sectors still stored on the device to handle data loss at the server. The server can not affected the data stored on the device or the logging of the data to flash as a safety measure.
 
-* The ESP8266 Real-Time-Clock (RTC) counter is logged with every event. The server response includes the real time and response events are logged allowing estimation of the real time of events in post-analysis. Support for logging a button press will be added to allow people to synchronize logging times manually.
+* The ESP8266 Real-Time-Clock (RTC) counter is logged with every event. The server response includes the real time and response events are logged allowing estimation of the real time of events in post-analysis. This can be be supported by the optional DS3231 real-time-clock. Support for logging a button press will be added to allow people to synchronize logging and events times manually.
 
 * The data posted to the server is signed using the MAC-SHA3 algorithm ensuring integrity of the data and preventing forgery of data posted to the server.
 
@@ -45,4 +51,4 @@ The URL to upload the data to and the key is hard coded, see `post.c`, and this 
 
 The protocol for storing the data and uploading will no doubt need a lot of revision.
 
-The server side code is just some hack code at this stage, it can recover the data and verify the checksums. The plan is to write CGI code in C to receive the data and validate the signature and store it on the server, and to provide an API for access to the data, which is expected to work with common and economical cPanel shared hosting.
+The server side code for logging the data to files has been prototyped, and is CGI code written in a few pages of C code and tested on Apache and expected to work on economical cPanel shared hosting. The client front end is stil TODO and is just some hack scripts for now.
