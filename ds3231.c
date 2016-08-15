@@ -119,7 +119,7 @@ static void ds3231_read_task(void *pvParameters)
 
         time_t clock_time = mktime(&time);
         int16_t temperature;
-        if (!ds3231_getTempInteger(&temperature)) {
+        if (!ds3231_getRawTemp(&temperature)) {
             xSemaphoreGive(i2c_sem);
             blink_red();
             continue;
