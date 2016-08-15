@@ -43,3 +43,6 @@ uint32_t emit_leb128_signed(uint8_t *buf, uint32_t start, int32_t v);
 
 #define DBUF_EVENT_DS3231_TIME_TEMP 7;
 #define DBUF_EVENT_DS3231_TIME_STEP 8;
+
+#define DBUF_EVENT_BMP280_TEMP_PRESSURE 9;
+#define DBUF_EVENT_BME280_TEMP_PRESSURE_RH 10;

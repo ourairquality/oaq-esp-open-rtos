@@ -59,6 +59,7 @@
 #include "i2c.h"
 #include "sht21.h"
 #include "bmp180.h"
+#include "bme280.h"
 #include "ds3231.h"
 
 
@@ -506,5 +507,6 @@ void user_init(void)
     init_pms();
     init_sht2x();
     init_bmp180();
+    init_bme280();
     init_ds3231();
 }
