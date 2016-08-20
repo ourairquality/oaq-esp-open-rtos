@@ -93,6 +93,6 @@ This is at the proof of concept stage.
 
 The URL to upload the data to and the key is hard coded, see `post.c`, and this needs to be configurable.
 
-The protocol for storing the data and uploading will no doubt need a lot of revision.
+The configuration is stored in the esp-free-rtos sysparam database. See the esp-free-rtos sysparam example for an editor which can be used to set these for now. TODO a web client app to create the sysparam sectors. The database uses for more sectors at the end of the flash.
 
 The server side code for logging the data to files has been prototyped, and is CGI code written in a few pages of C code and tested on Apache and expected to work on economical cPanel shared hosting. The client front end is stil TODO and is just some hack scripts for now.
