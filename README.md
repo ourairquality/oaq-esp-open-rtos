@@ -43,6 +43,50 @@ The following will build the code and flash a device on Linux.
 * The data posted to the server is signed using the MAC-SHA3 algorithm ensuring integrity of the data and preventing forgery of data posted to the server.
 
 
+## Connection
+
+Two ESP8266 boards have been tested.
+
+### Nodemcu
+
+UART pins for the PMSx003:
+
+| PCB name | Function | Cable color |
+| -------- | -------- | ----------- |
+| VIN | +5V | Purple |
+| GND | 0V | Orange |
+| D7 | RX | Green |
+
+Note the Lolin V3 nodemc board VCC is not usable as an output.
+
+I2C pins:
+
+| PCB name | Function |
+| -------- | -------- |
+| D3 | SCL |
+| D4 | SDA |
+| 3V3 | +V |
+| G | Ground |
+
+### Witty
+
+UART pins for the PMSx003:
+
+| PCB name | Function | Cable color |
+| -------- | -------- | ----------- |
+| VIN | +5V | Purple |
+| GND | 0V | Orange |
+| RX | RX | Green |
+
+I2C pins:
+
+| PCB name | Function |
+| -------- | -------- |
+| GPIO0 | SCL |
+| GPIO2 | SDA |
+| VCC | +V |
+| G | Ground |
+
 ## TODO
 
 This is at the proof of concept stage.
