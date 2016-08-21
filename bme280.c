@@ -56,15 +56,15 @@ static void bme280_read_task(void *pvParameters)
     bme280_params.oversampling = BMP280_ULTRA_HIGH_RES;
     bme280_params.standby = BMP280_STANDBY_250;
 
-    bmp280_calib_t bme280_calib;
-    bme280_calib.i2c_addr = BMP280_I2C_ADDRESS_0;
-    bool bme280_available = bmp280_init(&bme280_calib, &bme280_params);
+    bmp280_t bme280_dev;
+    bme280_dev.i2c_addr = BMP280_I2C_ADDRESS_0;
+    bool bme280_available = bmp280_init(&bme280_dev, &bme280_params);
     xSemaphoreGive(i2c_sem);
 
     if (!bme280_available)
         vTaskDelete(NULL);
 
-    bool bme280p = bme280_calib.id == BME280_CHIP_ID;
+    bool bme280p = bme280_dev.id == BME280_CHIP_ID;
     
     for (;;) {
         vTaskDelay(10000 / portTICK_RATE_MS);
@@ -74,7 +74,7 @@ static void bme280_read_task(void *pvParameters)
         int32_t temperature;
         uint32_t pressure;
         uint32_t humidity = 0;
-        if (!bmp280_read_fixed(&bme280_calib, &temperature, &pressure,
+        if (!bmp280_read_fixed(&bme280_dev, &temperature, &pressure,
                                bme280p ? &humidity : NULL)) {
             xSemaphoreGive(i2c_sem);
             blink_red();

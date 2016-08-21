@@ -29,7 +29,6 @@
 
 #include "buffer.h"
 #include "leds.h"
-
 #include "config.h"
 
 
@@ -334,10 +333,11 @@ static void pms_read_task(void *pvParameters)
 
 void init_pms()
 {
-    xTaskCreate(&pms_read_task, (signed char *)"pms_read_task", 256, NULL, 3, NULL);
-
-    /* For the nodemcu board. */
-#if defined(NODEMCU)
-    sdk_system_uart_swap();
-#endif
+    if (param_pms5003_serial) {
+        if (param_pms5003_serial == 2) {
+            /* For the benefit of the nodemcu board allow swapping uart0 pins. */
+            sdk_system_uart_swap();
+        }
+        xTaskCreate(&pms_read_task, (signed char *)"pms_read_task", 256, NULL, 3, NULL);
+    }
 }

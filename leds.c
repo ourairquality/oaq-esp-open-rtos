@@ -19,102 +19,104 @@
 
 #include "FreeRTOS.h"
 #include "task.h"
-
 #include "config.h"
 
 void init_blink()
 {
-#if defined(NODEMCU)
-    gpio_enable(16, GPIO_OUTPUT); // Blue
-    gpio_write(16, 0);
-#endif
+    switch (param_board) {
+      case 0:
+          gpio_enable(16, GPIO_OUTPUT); // Blue
+          gpio_write(16, 0);
+          break;
 
-#if defined(WITTY)
-    /*
-     * Witty board setup.
-     * Multi-color LED is on pins 12 13 and 15.
-     */
-
-    //iomux_set_gpio_function(12, 1);
-    //iomux_set_gpio_function(13, 1);
-    //iomux_set_gpio_function(15, 1);
-    gpio_enable(12, GPIO_OUTPUT); // Green
-    gpio_enable(13, GPIO_OUTPUT); // Blue
-    gpio_enable(15, GPIO_OUTPUT); // Red
-    gpio_write(12, 0);
-    gpio_write(13, 0);
-    gpio_write(15, 0);
-#endif
+      case 1:
+          /*
+           * Witty param_board setup.
+           * Multi-color LED is on pins 12 13 and 15.
+           */
+          gpio_enable(12, GPIO_OUTPUT); // Green
+          gpio_enable(13, GPIO_OUTPUT); // Blue
+          gpio_enable(15, GPIO_OUTPUT); // Red
+          gpio_write(12, 0);
+          gpio_write(13, 0);
+          gpio_write(15, 0);
+          break;
+    }
 }
 
 void blink_green()
 {
-#if defined(NODEMCU)
-    // Nodemcu blue!
-    gpio_write(12, 1);
-    taskYIELD();
-    gpio_write(12, 0);
-#endif
-
-#if defined(WITTY)
-    // Witty Green
-    gpio_write(12, 1);
-    taskYIELD();
-    gpio_write(12, 0);
-#endif
+    switch (param_board) {
+      case 0:
+          // Nodemcu blue!
+          gpio_write(12, 1);
+          taskYIELD();
+          gpio_write(12, 0);
+          break;
+      case 1 :
+          // Witty Green
+          gpio_write(12, 1);
+          taskYIELD();
+          gpio_write(12, 0);
+          break;
+    }
 }
 
 void blink_blue()
 {
-#if defined(NODEMCU)
-    // Nodemcu blue.
-    gpio_write(12, 1);
-    taskYIELD();
-    gpio_write(12, 0);
-#endif
-
-#if defined(WITTY)
-    // Witty Blue
-    gpio_write(13, 1);
-    taskYIELD();
-    gpio_write(13, 0);
-#endif
+    switch (param_board) {
+      case 0:
+          // Nodemcu blue.
+          gpio_write(12, 1);
+          taskYIELD();
+          gpio_write(12, 0);
+          break;
+      case 1:
+          // Witty Blue
+          gpio_write(13, 1);
+          taskYIELD();
+          gpio_write(13, 0);
+          break;
+    }
 }
 
 void blink_red()
 {
-#if defined(NODEMCU)
-    // Nodemcu blue!
-    gpio_write(12, 1);
-    taskYIELD();
-    gpio_write(12, 0);
-#endif
+    switch (param_board) {
+      case 0:
+          // Nodemcu blue!
+          gpio_write(12, 1);
+          taskYIELD();
+          gpio_write(12, 0);
+          break;
 
-#if defined(WITTY)
-    // Witty Red
-    gpio_write(15, 1);
-    taskYIELD();
-    gpio_write(15, 0);
-#endif
+      case 1:
+          // Witty Red
+          gpio_write(15, 1);
+          taskYIELD();
+          gpio_write(15, 0);
+          break;
+    }
 }
 
 void blink_white()
 {
-#if defined(NODEMCU)
-    // Nodemcu blue!
-    gpio_write(12, 1);
-    taskYIELD();
-    gpio_write(12, 0);
-#endif
+    switch (param_board) {
+      case 0:
+          // Nodemcu blue!
+          gpio_write(12, 1);
+          taskYIELD();
+          gpio_write(12, 0);
+          break;
 
-#if defined(WITTY)
-    // Witty Green, Blue, Red
-    gpio_write(12, 1);
-    gpio_write(13, 1);
-    gpio_write(15, 1);
-    taskYIELD();
-    gpio_write(12, 0);
-    gpio_write(13, 0);
-    gpio_write(15, 0);
-#endif
+      case 1:
+          // Witty Green, Blue, Red
+          gpio_write(12, 1);
+          gpio_write(13, 1);
+          gpio_write(15, 1);
+          taskYIELD();
+          gpio_write(12, 0);
+          gpio_write(13, 0);
+          gpio_write(15, 0);
+    }
 }
