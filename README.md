@@ -98,7 +98,7 @@ The configuration is stored in the esp-free-rtos sysparam database. See the esp-
 
 * `i2c_scl`, `i2c_sda` - single binary bytes giving the I2C bus pin definitions, GPIO numbers. SCL defaults to GPIO 0 (Nodemcu pin D3) and SDA to GPIO 2 (Nodemcu pin D4) if not supplied.
 
-The follow are network parameters. If not sufficiently initialized to communicate with a server then wifi is disabled and the post-data task is not created, but the data will still be logged to the internal Flash storage and can be download to a PC.
+The follow are network parameters. If not sufficiently initialized to communicate with a server then Wifi is disabled and the post-data task is not created, but the data will still be logged to the internal Flash storage and can be downloaded to a PC.
 
 * `web_server` - a string, e.g. 'ourairquality.org', '192.168.1.1'
 
