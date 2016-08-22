@@ -114,7 +114,7 @@ The follow are network parameters. If not sufficiently initialized to communicat
 
 * `wifi_ssid` - a string, the Wifi station ID.
 
-* `wifi_pass` - a string, the respected Wifi password.
+* `wifi_pass` - a string, the respective Wifi password.
 
 
 ## TODO
