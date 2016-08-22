@@ -2,7 +2,7 @@
 
 A community developed open source air quality data logger.
 
-Currently supporting the [Plantower](http://plantower/) PMS1003, PMS3003, PMS5003, and PMS7003 particle counters.
+Currently supporting the [Plantower](http://plantower.com/) PMS1003, PMS3003, PMS5003, and PMS7003 particle counters.
 
 Supports a few temperature, relative humidity, and pressure sensors on the same I2C. These are auto-detected and used if available. This data might be important for qualifying if the air conditions support reliable PM measurement.
 
