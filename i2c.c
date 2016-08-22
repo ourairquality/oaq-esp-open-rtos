@@ -1,6 +1,8 @@
 /*
  * I2C support.
  *
+ * Copyright (C) 2016 OurAirQuality.org
+ *
  * Licensed under the Apache License, Version 2.0, January 2004 (the
  * "License"); you may not use this file except in compliance with the
  * License.  You may obtain a copy of the License at
@@ -28,20 +30,13 @@
 #include "semphr.h"
 #include "i2c/i2c.h"
 #include "i2c.h"
-
-#include <espressif/esp_misc.h>
-#include "espressif/esp8266/gpio_register.h"
-
-
-
-#define SCL_PIN GPIO_ID_PIN((0))      /* Nodemcu pin D3 */
-#define SDA_PIN GPIO_ID_PIN((2))      /* Nodemcu pin D4 */
+#include "config.h"
 
 /* To synchronize access to the I2C interface. */
 xSemaphoreHandle i2c_sem;
 
 void init_i2c()
 {
-    i2c_init(SCL_PIN, SDA_PIN);
+    i2c_init(param_i2c_scl, param_i2c_sda);
     i2c_sem = xSemaphoreCreateMutex();
 }

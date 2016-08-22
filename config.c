@@ -1,6 +1,8 @@
 /*
  * Configuration parameters.
  *
+ * Copyright (C) 2016 OurAirQuality.org
+ *
  * Licensed under the Apache License, Version 2.0, January 2004 (the
  * "License"); you may not use this file except in compliance with the
  * License.  You may obtain a copy of the License at
@@ -28,20 +30,17 @@
 
 /*
  * Parameters.
- *
- * If not sufficiently initialized to communicate with a server then
- * wifi is disabled and the post-data task is not created.
- *
- * The 'board' can be 0 for Nodemcu, and 1 for Witty.
  */
+uint8_t param_board;
+uint8_t param_pms_uart;
+uint8_t param_i2c_scl;
+uint8_t param_i2c_sda;
 char *param_web_server;
 char *param_web_port;
 char *param_web_path;
 uint32_t param_sensor_id;
 uint32_t param_key_size;
 uint8_t *param_sha3_key;
-uint8_t param_board;
-uint8_t param_pms5003_serial;
 char *param_wifi_ssid;
 char *param_wifi_pass;
 
@@ -50,7 +49,9 @@ void init_params()
     sysparam_status_t status;
 
     param_board = 0;
-    param_pms5003_serial = 0;
+    param_pms_uart = 0;
+    param_i2c_scl = 0;
+    param_i2c_sda = 2;
     param_wifi_ssid = NULL;
     param_wifi_pass = NULL;
     param_web_server = NULL;
@@ -61,10 +62,13 @@ void init_params()
     param_sha3_key = NULL;
 
     sysparam_get_int8("board", (int8_t *)&param_board);
-    sysparam_get_int8("pms5003_serial", (int8_t *)&param_pms5003_serial);
+    sysparam_get_int8("pms_uart", (int8_t *)&param_pms_uart);
+    sysparam_get_int8("i2c_scl", (int8_t *)&param_i2c_scl);
+    sysparam_get_int8("i2c_sda", (int8_t *)&param_i2c_sda);
+
     sysparam_get_string("wifissid", &param_wifi_ssid);
     sysparam_get_string("wifipass", &param_wifi_pass);
-    
+
     sysparam_get_string("web_server", &param_web_server);
     sysparam_get_string("web_port", &param_web_port);
     sysparam_get_string("web_path", &param_web_path);

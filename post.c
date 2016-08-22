@@ -1,6 +1,8 @@
 /*
  * HTTP-Post the flash sectors to a server.
  *
+ * Copyright (C) 2016 OurAirQuality.org
+ *
  * Licensed under the Apache License, Version 2.0, January 2004 (the
  * "License"); you may not use this file except in compliance with the
  * License.  You may obtain a copy of the License at
@@ -115,7 +117,7 @@ static void post_data_task(void *pvParameters)
             };
             struct addrinfo *res;
 
-            int err = getaddrinfo(WEB_SERVER, WEB_PORT, &hints, &res);
+            int err = getaddrinfo(param_web_server, param_web_port, &hints, &res);
             if (err != 0 || res == NULL) {
                 if (res)
                     freeaddrinfo(res);
@@ -184,14 +186,14 @@ static void post_data_task(void *pvParameters)
             /*
              * Next use the prefix area for the HTTP header.
              */
-            uint32_t header_size = snprintf(post_buf, PREFIX_SIZE,
+            uint32_t header_size = snprintf((char *)post_buf, PREFIX_SIZE,
                                             "POST %s HTTP/1.1\r\n"
                                             "Host: %s:%s\r\n"
                                             "Connection: close\r\n"
                                             "Content-Type: application/octet-stream\r\n"
                                             "Content-Length: %d\r\n"
-                                            "\r\n", param_web_path, param_web_server, param_web_port,
-                                            16 + size + SIGNATURE_SIZE);
+                                            "\r\n", param_web_path, param_web_server,
+                                            param_web_port, 16 + size + SIGNATURE_SIZE);
             /*
              * Move the header up to meet the data.
              */
@@ -358,8 +360,8 @@ void init_network()
         param_wifi_ssid && param_wifi_pass &&
         strlen(param_wifi_ssid) < 32 && strlen(param_wifi_pass) < 64) {
         struct sdk_station_config config;
-        strcpy(config.ssid, param_wifi_ssid);
-        strcpy(config.password, param_wifi_pass);
+        strcpy((char *)config.ssid, param_wifi_ssid);
+        strcpy((char *)config.password, param_wifi_pass);
 
         sdk_wifi_set_opmode(STATION_MODE);
         sdk_wifi_station_set_config(&config);

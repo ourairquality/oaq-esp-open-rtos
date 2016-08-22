@@ -1,6 +1,8 @@
 /*
  * Driver for the Plantower PMS3003 and PMS5003.
  *
+ * Copyright (C) 2016 OurAirQuality.org
+ *
  * Licensed under the Apache License, Version 2.0, January 2004 (the
  * "License"); you may not use this file except in compliance with the
  * License.  You may obtain a copy of the License at
@@ -333,8 +335,8 @@ static void pms_read_task(void *pvParameters)
 
 void init_pms()
 {
-    if (param_pms5003_serial) {
-        if (param_pms5003_serial == 2) {
+    if (param_pms_uart) {
+        if (param_pms_uart == 2) {
             /* For the benefit of the nodemcu board allow swapping uart0 pins. */
             sdk_system_uart_swap();
         }

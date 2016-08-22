@@ -87,12 +87,42 @@ I2C pins:
 | VCC | +V |
 | G | Ground |
 
+
+## Configuration
+
+The configuration is stored in the esp-free-rtos sysparam database. See the esp-free-rtos sysparam example for an editor which can be used to set these for now. The database uses four more sectors at the end of the flash.
+
+* `board` - single binary byte that can be 0 for Nodemcu, and 1 for Witty. It is only used to blink some LEDs at present.
+
+* `pms_uart` - single binary byte that gives the PMS*003 serial port: 0 - None, disabled (default); 1 - UART0 on GPIO3 aka RX (Nodemcu pin D9); 2 - UART0 swapped pins mode, GPIO13 (Nodemcu pin D7); 3 - TODO Flipping between the above for two sensors?
+
+* `i2c_scl`, `i2c_sda` - single binary bytes giving the I2C bus pin definitions, GPIO numbers. SCL defaults to GPIO 0 (Nodemcu pin D3) and SDA to GPIO 2 (Nodemcu pin D4) if not supplied.
+
+The follow are network parameters. If not sufficiently initialized to communicate with a server then wifi is disabled and the post-data task is not created, but the data will still be logged to the internal Flash storage and can be download to a PC.
+
+* `web_server` - a string, e.g. 'ourairquality.org', '192.168.1.1'
+
+* `web_port` - a string, e.g. '80'
+
+* `web_path` - a string, e.g. '/cgi-bin/recv'
+
+* `sensor_id` - a binary 32 bit number.
+
+* `key_size` - a binary 32 bit number.
+
+* `sha3_key` - a binary blob, with `key_size` bytes.
+
+* `wifi_ssid` - a string, the Wifi station ID.
+
+* `wifi_pass` - a string, the respected Wifi password.
+
+
 ## TODO
 
 This is at the proof of concept stage.
 
 The URL to upload the data to and the key is hard coded, see `post.c`, and this needs to be configurable.
 
-The configuration is stored in the esp-free-rtos sysparam database. See the esp-free-rtos sysparam example for an editor which can be used to set these for now. TODO a web client app to create the sysparam sectors. The database uses for more sectors at the end of the flash.
+TODO a web client app to create the sysparam sectors.
 
 The server side code for logging the data to files has been prototyped, and is CGI code written in a few pages of C code and tested on Apache and expected to work on economical cPanel shared hosting. The client front end is stil TODO and is just some hack scripts for now.

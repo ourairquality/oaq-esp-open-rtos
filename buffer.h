@@ -1,6 +1,8 @@
 /*
  * Memory resident (RAM) buffer support.
  *
+ * Copyright (C) 2016 OurAirQuality.org
+ *
  * Licensed under the Apache License, Version 2.0, January 2004 (the
  * "License"); you may not use this file except in compliance with the
  * License.  You may obtain a copy of the License at
