@@ -57,7 +57,7 @@ UART pins for the PMSx003:
 | GND | 0V | Orange |
 | D7 | RX | Green |
 
-Note the Lolin V3 nodemc board VCC is not usable as an output.
+Note the Lolin V3 Nodemcu board VIN pin is not usable as a +5V output, but it has +5V output on it's VU pin which is a reserved pin on other Nodemcu boards.
 
 I2C pins:
 
