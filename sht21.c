@@ -224,6 +224,22 @@ static uint8_t sht2x_measure_poll(int temp_rh, uint8_t data[], uint8_t *crc)
 
 
 
+static bool sht2x_available = false;
+static uint8_t sht2x_serial_number[8];
+static uint16_t sht2x_temperature = 0;
+static uint16_t sht2x_rh = 0;
+
+bool sht2x_temp_rh(float *temp, float *rh)
+{
+    if (!sht2x_available)
+        return false;
+
+    xSemaphoreTake(i2c_sem, portMAX_DELAY);
+    *temp = -46.85 + (175.72/16384.0) * (float)sht2x_temperature;
+    *rh = -6.0 + (125.0/16384.0) * (float)sht2x_rh;
+    xSemaphoreGive(i2c_sem);
+}
+
 static void sht2x_read_task(void *pvParameters)
 {
     /* Delta encoding state. */
@@ -237,8 +253,7 @@ static void sht2x_read_task(void *pvParameters)
      * Reset the sensor and try reading the serial number to try
      * detecting the sensor.
      */
-    uint8_t sht2x_serial_number[8];
-    bool sht2x_available = sht2x_soft_reset() &&
+    sht2x_available = sht2x_soft_reset() &&
         sht2x_get_serial_number(sht2x_serial_number);
 
     /* Set resolution to 12 bit temperature and 14 bit relative humidity. */
@@ -281,6 +296,9 @@ static void sht2x_read_task(void *pvParameters)
 
         uint16_t rh = ((uint16_t) data[2]) << 8 | data[3];
         rh >>= 2; /* Strip the two low status bits */
+
+        sht2x_temperature = temp;
+        sht2x_rh = rh;
 
         xSemaphoreGive(i2c_sem);
 

@@ -57,6 +57,7 @@
 #include "config.h"
 #include "leds.h"
 #include "flash.h"
+#include "web.h"
 #include "post.h"
 #include "pms.h"
 #include "i2c.h"
@@ -88,7 +89,7 @@ typedef struct {
  * time then it is discarded.
  */
 
-#define NUM_DBUFS 4
+#define NUM_DBUFS 2
 
 static dbuf_t dbufs[NUM_DBUFS];
 
@@ -501,7 +502,8 @@ void user_init(void)
         last_index = new_index;
     }
 
-    init_network();
+    init_web();
+    init_post();
 
     init_blink();
     blink_red();

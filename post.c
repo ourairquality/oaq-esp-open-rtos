@@ -350,25 +350,14 @@ static void post_data_task(void *pvParameters)
     }
 }
 
-void init_network()
+void init_post()
 {
     vSemaphoreCreateBinary(post_data_sem);
 
     if (param_web_server && param_web_port && param_web_path &&
         param_sensor_id &&
-        param_key_size == 287 && param_sha3_key &&
-        param_wifi_ssid && param_wifi_pass &&
-        strlen(param_wifi_ssid) < 32 && strlen(param_wifi_pass) < 64) {
-        struct sdk_station_config config;
-        strcpy((char *)config.ssid, param_wifi_ssid);
-        strcpy((char *)config.password, param_wifi_pass);
-
-        sdk_wifi_set_opmode(STATION_MODE);
-        sdk_wifi_station_set_config(&config);
-        sdk_wifi_set_sleep_type(WIFI_SLEEP_MODEM);
+        param_key_size == 287 && param_sha3_key) {
 
         xTaskCreate(&post_data_task, (signed char *)"post_task", 480, NULL, 1, NULL);
-    } else {
-        sdk_wifi_set_opmode(NULL_MODE);
     }
 }

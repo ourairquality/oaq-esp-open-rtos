@@ -24,6 +24,34 @@
 #include "esp/gpio.h"
 #include "config.h"
 
+void init_blink()
+{
+    switch (param_board) {
+      case 0:
+          // Nodemcu
+          gpio_enable(16, GPIO_OUTPUT);
+          gpio_write(16, 1);
+          break;
+
+      case 1:
+          /*
+           * Witty param_board setup.
+           * Multi-color LED is on pins 12 13 and 15.
+           */
+
+          //iomux_set_gpio_function(12, 1);
+          //iomux_set_gpio_function(13, 1);
+          //iomux_set_gpio_function(15, 1);
+          gpio_enable(12, GPIO_OUTPUT); // Green
+          gpio_enable(13, GPIO_OUTPUT); // Blue
+          gpio_enable(15, GPIO_OUTPUT); // Red
+          gpio_write(12, 0);
+          gpio_write(13, 0);
+          gpio_write(15, 0);
+          break;
+    }
+}
+
 void blink_green()
 {
     switch (param_board) {

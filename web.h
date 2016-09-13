@@ -1,5 +1,5 @@
 /*
- * HTTP-Post the flash sectors to a server.
+ * Web interface.
  *
  * Copyright (C) 2016 OurAirQuality.org
  *
@@ -20,6 +20,4 @@
  *
  */
 
-void init_post();
-
-extern xSemaphoreHandle post_data_sem;
+void init_web();
