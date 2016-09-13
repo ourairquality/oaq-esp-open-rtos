@@ -238,6 +238,8 @@ bool sht2x_temp_rh(float *temp, float *rh)
     *temp = -46.85 + (175.72/16384.0) * (float)sht2x_temperature;
     *rh = -6.0 + (125.0/16384.0) * (float)sht2x_rh;
     xSemaphoreGive(i2c_sem);
+
+    return true;
 }
 
 static void sht2x_read_task(void *pvParameters)

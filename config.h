@@ -57,8 +57,6 @@ extern char *param_web_path;
 extern uint32_t param_sensor_id;
 extern uint32_t param_key_size;
 extern uint8_t *param_sha3_key;
-extern char *param_wifi_ssid;
-extern char *param_wifi_pass;
 
 void init_params();
 
