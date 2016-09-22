@@ -36,7 +36,7 @@ uint8_t param_pms_uart;
 uint8_t param_i2c_scl;
 uint8_t param_i2c_sda;
 char *param_web_server;
-char *param_web_port;
+char param_web_port[7];
 char *param_web_path;
 uint32_t param_sensor_id;
 uint32_t param_key_size;
@@ -47,30 +47,30 @@ void init_params()
     sysparam_status_t status;
 
     param_board = 0;
-    param_pms_uart = 0;
+    param_pms_uart = 1;
     param_i2c_scl = 0;
     param_i2c_sda = 2;
     param_web_server = NULL;
-    param_web_port = NULL;
+    bzero(param_web_port, sizeof(param_web_port));
     param_web_path = NULL;
     param_sensor_id = 0;
     param_key_size = 0;
     param_sha3_key = NULL;
 
-    sysparam_get_int8("board", (int8_t *)&param_board);
-    sysparam_get_int8("pms_uart", (int8_t *)&param_pms_uart);
-    sysparam_get_int8("i2c_scl", (int8_t *)&param_i2c_scl);
-    sysparam_get_int8("i2c_sda", (int8_t *)&param_i2c_sda);
+    sysparam_get_int8("oaq_board", (int8_t *)&param_board);
+    sysparam_get_int8("oaq_pms_uart", (int8_t *)&param_pms_uart);
+    sysparam_get_int8("oaq_i2c_scl", (int8_t *)&param_i2c_scl);
+    sysparam_get_int8("oaq_i2c_sda", (int8_t *)&param_i2c_sda);
 
-    sysparam_get_string("web_server", &param_web_server);
-    sysparam_get_string("web_port", &param_web_port);
-    sysparam_get_string("web_path", &param_web_path);
+    sysparam_get_string("oaq_web_server", &param_web_server);
+    int32_t port = 80;
+    sysparam_get_int32("oaq_web_port", &port);
+    snprintf(param_web_port, sizeof(param_web_port), "%u", port);
+    sysparam_get_string("oaq_web_path", &param_web_path);
 
-    sysparam_get_int32("sensor_id", (int32_t *)&param_sensor_id);
-    sysparam_get_int32("key_size", (int32_t *)&param_key_size);
-    size_t actual_length;
-    status = sysparam_get_data("key", &param_sha3_key, &actual_length, NULL);
-    if (status != SYSPARAM_OK || actual_length != param_key_size) {
+    sysparam_get_int32("oaq_sensor_id", (int32_t *)&param_sensor_id);
+    status = sysparam_get_data("oaq_sha3_key", &param_sha3_key, &param_key_size, NULL);
+    if (status != SYSPARAM_OK) {
         param_key_size = 0;
         param_sha3_key = NULL;
     }

@@ -26,6 +26,7 @@
 #include <esp/uart.h>
 #include <stdio.h>
 #include <time.h>
+#include <strings.h>
 #include "FreeRTOS.h"
 #include "task.h"
 #include "semphr.h"
@@ -93,6 +94,23 @@ void ds3231_note_time(time_t recv_time)
     }
 }
 
+bool ds3231_available = false;
+struct tm ds3231_time;
+int16_t ds3231_temperature = 0;
+
+bool ds3231_time_temp(struct tm *time, float *temp)
+{
+    if (!ds3231_available)
+        return false;
+
+    xSemaphoreTake(i2c_sem, portMAX_DELAY);
+    *time = ds3231_time;;
+    *temp = (float)ds3231_temperature * 0.25;
+    xSemaphoreGive(i2c_sem);
+
+    return true;
+}
+
 static void ds3231_read_task(void *pvParameters)
 {
     /* Delta encoding state. */
@@ -101,8 +119,11 @@ static void ds3231_read_task(void *pvParameters)
     int16_t last_temperature = 0;
 
     xSemaphoreTake(i2c_sem, portMAX_DELAY);
+
+    bzero(&ds3231_time, sizeof(ds3231_time));
+
     struct tm time;
-    bool ds3231_available = ds3231_getTime(&time);
+    ds3231_available = ds3231_getTime(&time);
     xSemaphoreGive(i2c_sem);
     
     if (!ds3231_available)
@@ -126,6 +147,9 @@ static void ds3231_read_task(void *pvParameters)
             blink_red();
             continue;
         }
+
+        ds3231_time = time;
+        ds3231_temperature = temperature;
 
         xSemaphoreGive(i2c_sem);
 
@@ -165,5 +189,5 @@ static void ds3231_read_task(void *pvParameters)
 
 void init_ds3231()
 {
-    xTaskCreate(&ds3231_read_task, (signed char *)"ds3231_read_task", 256, NULL, 2, NULL);
+    xTaskCreate(&ds3231_read_task, (signed char *)"DS3231 reader", 240, NULL, 2, NULL);
 }

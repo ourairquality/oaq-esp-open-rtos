@@ -354,10 +354,8 @@ void init_post()
 {
     vSemaphoreCreateBinary(post_data_sem);
 
-    if (param_web_server && param_web_port && param_web_path &&
-        param_sensor_id &&
+    if (param_web_server && param_web_path && param_sensor_id &&
         param_key_size == 287 && param_sha3_key) {
-
-        xTaskCreate(&post_data_task, (signed char *)"post_task", 480, NULL, 1, NULL);
+        xTaskCreate(&post_data_task, (signed char *)"OAQ Post", 480, NULL, 1, NULL);
     }
 }

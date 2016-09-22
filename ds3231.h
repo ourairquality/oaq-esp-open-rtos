@@ -21,3 +21,5 @@
 
 void ds3231_note_time(time_t time);
 void init_ds3231();
+
+bool ds3231_time_temp(struct tm *time, float *temp);

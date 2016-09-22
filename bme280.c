@@ -41,6 +41,25 @@
 
 
 
+static bool bme280_available = false;
+static int32_t bme280_temperature = 0;
+static uint32_t bme280_pressure = 0;
+static uint32_t bme280_rh = 0;
+
+bool bme280_temp_press_rh(float *temp, float *press, float *rh)
+{
+    if (!bme280_available)
+        return false;
+
+    xSemaphoreTake(i2c_sem, portMAX_DELAY);
+    *temp = (float)bme280_temperature/100.0;
+    *press = (float)bme280_pressure/256.0;
+    *rh = (float)bme280_rh/1024.0;
+    xSemaphoreGive(i2c_sem);
+
+    return true;
+}
+
 static void bme280_read_task(void *pvParameters)
 {
     /* Delta encoding state. */
@@ -60,7 +79,7 @@ static void bme280_read_task(void *pvParameters)
 
     bmp280_t bme280_dev;
     bme280_dev.i2c_addr = BMP280_I2C_ADDRESS_0;
-    bool bme280_available = bmp280_init(&bme280_dev, &bme280_params);
+    bme280_available = bmp280_init(&bme280_dev, &bme280_params);
     xSemaphoreGive(i2c_sem);
 
     if (!bme280_available)
@@ -82,6 +101,10 @@ static void bme280_read_task(void *pvParameters)
             blink_red();
             continue;
         }
+
+        bme280_temperature = temperature;
+        bme280_pressure = pressure;
+        bme280_rh = humidity;
 
         xSemaphoreGive(i2c_sem);
 
@@ -129,5 +152,5 @@ static void bme280_read_task(void *pvParameters)
 
 void init_bme280()
 {
-    xTaskCreate(&bme280_read_task, (signed char *)"bme280_read_task", 256, NULL, 2, NULL);
+    xTaskCreate(&bme280_read_task, (signed char *)"BME280 reader", 272, NULL, 2, NULL);
 }

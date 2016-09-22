@@ -52,7 +52,7 @@ extern uint8_t param_i2c_sda;
  */
 
 extern char *param_web_server;
-extern char *param_web_port;
+extern char param_web_port[];
 extern char *param_web_path;
 extern uint32_t param_sensor_id;
 extern uint32_t param_key_size;
