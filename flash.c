@@ -258,7 +258,7 @@ void flash_data_task(void *pvParameters)
 
                     sdk_SpiFlashOpResult res;
                     uint32_t dest_addr = (uint32_t)flash_sector * 4096 + aligned_start;
-                    res = sdk_spi_flash_write(dest_addr, flash_buf + aligned_start, aligned_size);
+                    res = sdk_spi_flash_write(dest_addr, (uint32_t *)(flash_buf + aligned_start), aligned_size);
                     taskYIELD();
                     if (res == SPI_FLASH_RESULT_OK &&
                         check_flash_sector(flash_sector, (uint32_t *)flash_buf)) {
@@ -299,7 +299,7 @@ void flash_data_task(void *pvParameters)
                 /* Write the sector. */
                 sdk_SpiFlashOpResult res;
                 uint32_t dest_addr = (uint32_t)flash_sector * 4096;
-                res = sdk_spi_flash_write(dest_addr, flash_buf, size);
+                res = sdk_spi_flash_write(dest_addr, (uint32_t *)flash_buf, size);
                 taskYIELD();
                 if (res != SPI_FLASH_RESULT_OK ||
                     !check_flash_sector(flash_sector, (uint32_t *)flash_buf)) {
@@ -346,8 +346,7 @@ uint32_t get_buffer_to_post(uint32_t *index, uint32_t *start, uint8_t *buf)
                     /* Check the size to post.  Limit and align the start. */
                     *start = last_index_size_posted & 0xffc;
                     sdk_SpiFlashOpResult res;
-                    /* todo hope buf is aligned!! */
-                    res = sdk_spi_flash_read(flash_sector * 4096 + *start, buf, 4096 - *start);
+                    res = sdk_spi_flash_read(flash_sector * 4096 + *start, (uint32_t *)buf, 4096 - *start);
                     if (res == SPI_FLASH_RESULT_OK) {
                         /* Skip sending trailing ones bits. */
                         uint32_t size;
@@ -397,7 +396,7 @@ uint32_t get_buffer_to_post(uint32_t *index, uint32_t *start, uint8_t *buf)
                     /* Limit and align the start. */
                     *start = last_index_size_posted & 0xffc;
                     sdk_SpiFlashOpResult res;
-                    res = sdk_spi_flash_read(sector * 4096 + *start, buf, 4096 - *start);
+                    res = sdk_spi_flash_read(sector * 4096 + *start, (uint32_t *)buf, 4096 - *start);
                     if (res == SPI_FLASH_RESULT_OK) {
                         /* Skip sending trailing ones bits. */
                         uint32_t size;
@@ -451,7 +450,7 @@ uint32_t get_buffer_to_post(uint32_t *index, uint32_t *start, uint8_t *buf)
         *start = 0;
         /* Read the entire sector. */
         sdk_SpiFlashOpResult res;
-        res = sdk_spi_flash_read(sector_to_post * 4096, buf, 4096);
+        res = sdk_spi_flash_read(sector_to_post * 4096, (uint32_t *)buf, 4096);
         if (res == SPI_FLASH_RESULT_OK) {
             /* Skip sending trailing ones bits. */
             for (size = 4096; size > 0; size--) {
@@ -499,6 +498,161 @@ uint32_t maybe_buffer_to_post()
     xSemaphoreGive(flash_state_sem);
     return maybe;
 }
+
+
+/*
+ * Request the current length of the buffer with the given index or
+ * the first buffer with an index less than that requested to make it
+ * easy to get both the current index and size. Returns the oldest
+ * buffer and its size if no buffers match, when requesting an old
+ * index no longer in the flash. Used by the web interface to give the
+ * content-length of a response. The buffer might grow while posting,
+ * by the response will only send the amount indicated here. This
+ * could also be used to support requesting a range, allowing the web
+ * client to probe if there is more data to download.
+ */
+uint32_t get_buffer_size(uint32_t requested_index, uint32_t *index)
+{
+    xSemaphoreTake(flash_state_sem, portMAX_DELAY);
+
+    uint32_t last_sector = 0;
+
+    if (flash_sector_initialized) {
+        if (decode_flash_sector_index(flash_sector, index)) {
+            last_sector = flash_sector;
+            if (*index <= requested_index) {
+                sdk_SpiFlashOpResult res;
+                res = sdk_spi_flash_read(flash_sector * 4096, (uint32_t *)flash_buf, 4096);
+                if (res == SPI_FLASH_RESULT_OK) {
+                    uint32_t size = 0;
+                    for (size = 4096; size > 0; size--) {
+                        if (flash_buf[size - 1] != 0xff)
+                            break;
+                    }
+                    xSemaphoreGive(flash_state_sem);
+                    return size;
+                }
+            }
+        }
+    }
+
+    /* Search backwards from the current head flash_sector looking for the first
+     * index not posted. */
+    uint32_t sector = flash_sector - 1;
+    if (sector < BUFFER_FLASH_FIRST_SECTOR) {
+        sector = BUFFER_FLASH_FIRST_SECTOR + BUFFER_FLASH_NUM_SECTORS - 1;
+    }
+
+    while (1) {
+        if (decode_flash_sector_index(sector, index)) {
+            last_sector = sector;
+            if (*index <= requested_index) {
+                sdk_SpiFlashOpResult res;
+                memset(flash_buf, 0xa5, 4096);
+                res = sdk_spi_flash_read(sector * 4096, (uint32_t *)flash_buf, 4096);
+                if (res == SPI_FLASH_RESULT_OK) {
+                    uint32_t size;
+                    for (size = 4096; size > 0; size--) {
+                        if (flash_buf[size - 1] != 0xff)
+                            break;
+                    }
+                    xSemaphoreGive(flash_state_sem);
+                    return size;
+                }
+            }
+        }
+        sector--;
+        if (sector < BUFFER_FLASH_FIRST_SECTOR) {
+            sector = BUFFER_FLASH_FIRST_SECTOR + BUFFER_FLASH_NUM_SECTORS - 1;
+        }
+        if (sector == flash_sector) {
+            /* Wrapped. */
+            break;
+        }
+    }
+
+    if (last_sector != 0) {
+        // Found something, so return it and it's size.
+        if (decode_flash_sector_index(last_sector, index)) {
+            sdk_SpiFlashOpResult res;
+            res = sdk_spi_flash_read(last_sector * 4096, (uint32_t *)flash_buf, 4096);
+            if (res == SPI_FLASH_RESULT_OK) {
+                uint32_t size = 0;
+                for (size = 4096; size > 0; size--) {
+                    if (flash_buf[size - 1] != 0xff)
+                        break;
+                }
+                xSemaphoreGive(flash_state_sem);
+                return size;
+            }
+        }
+    }
+
+    xSemaphoreGive(flash_state_sem);
+
+    *index = 0;
+    return 0;
+}
+
+/*
+ * Return a range of the buffer with the given index. If the buffer
+ * index is no longer available then return false, otherwise success,
+ * which can happen if reading from the tail of the FIFO. The http
+ * response will be truncated on such a failure and less than the
+ * length probe at the start of the response, the http response will
+ * send a response with a content-length and the client can detect
+ * the truncated response.
+ */
+bool get_buffer_range(uint32_t index, uint32_t start, uint32_t end, uint8_t *buf)
+{
+    xSemaphoreTake(flash_state_sem, portMAX_DELAY);
+
+    if (flash_sector_initialized) {
+        uint32_t i;
+        if (decode_flash_sector_index(flash_sector, &i) && i == index) {
+            sdk_SpiFlashOpResult res;
+            res = sdk_spi_flash_read(flash_sector * 4096, (uint32_t *)flash_buf, 4096);
+            if (res == SPI_FLASH_RESULT_OK) {
+                for (i = 0; i < end - start; i++)
+                    buf[i] = flash_buf[start + i];
+                xSemaphoreGive(flash_state_sem);
+                return true;
+            }
+        }
+    }
+
+    /* Search backwards from the current head flash_sector looking for the first
+     * index not posted. */
+    uint32_t sector = flash_sector - 1;
+    if (sector < BUFFER_FLASH_FIRST_SECTOR) {
+        sector = BUFFER_FLASH_FIRST_SECTOR + BUFFER_FLASH_NUM_SECTORS - 1;
+    }
+
+    while (1) {
+        uint32_t i;
+        if (decode_flash_sector_index(sector, &i) && i == index) {
+            sdk_SpiFlashOpResult res;
+            res = sdk_spi_flash_read(sector * 4096, (uint32_t *)flash_buf, 4096);
+            if (res == SPI_FLASH_RESULT_OK) {
+                for (i = 0; i < end - start; i++)
+                    buf[i] = flash_buf[start + i];
+                xSemaphoreGive(flash_state_sem);
+                return true;
+            }
+        }
+        sector--;
+        if (sector < BUFFER_FLASH_FIRST_SECTOR) {
+            sector = BUFFER_FLASH_FIRST_SECTOR + BUFFER_FLASH_NUM_SECTORS - 1;
+        }
+        if (sector == flash_sector) {
+            /* Wrapped. */
+            break;
+        }
+    }
+
+    return false;
+}
+
 
 uint32_t init_flash()
 {

@@ -19,11 +19,14 @@
  *
  */
 
-extern uint32_t get_buffer_to_post(uint32_t *index, uint32_t *start, uint8_t *buf);
-extern void note_buffer_posted(uint32_t index, uint32_t size);
-extern uint32_t maybe_buffer_to_post();
+uint32_t get_buffer_to_post(uint32_t *index, uint32_t *start, uint8_t *buf);
+void note_buffer_posted(uint32_t index, uint32_t size);
+uint32_t maybe_buffer_to_post();
 
-extern uint32_t init_flash();
-extern void flash_data_task(void *pvParameters);
+uint32_t init_flash();
+void flash_data_task(void *pvParameters);
 
 extern xSemaphoreHandle flash_data_sem;
+
+uint32_t get_buffer_size(uint32_t requested_index, uint32_t *index);
+bool get_buffer_range(uint32_t index, uint32_t start, uint32_t end, uint8_t *buf);

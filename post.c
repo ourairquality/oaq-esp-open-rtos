@@ -34,8 +34,6 @@
 #include "lwip/netdb.h"
 #include "lwip/dns.h"
 
-#include "ssid_config.h"
-
 #include "buffer.h"
 #include "config.h"
 #include "flash.h"
@@ -356,6 +354,6 @@ void init_post()
 
     if (param_web_server && param_web_path && param_sensor_id &&
         param_key_size == 287 && param_sha3_key) {
-        xTaskCreate(&post_data_task, (signed char *)"OAQ Post", 480, NULL, 1, NULL);
+        xTaskCreate(&post_data_task, (signed char *)"OAQ Post", 304, NULL, 1, NULL);
     }
 }

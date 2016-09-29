@@ -79,10 +79,10 @@ static void bme280_read_task(void *pvParameters)
 
     bmp280_t bme280_dev;
     bme280_dev.i2c_addr = BMP280_I2C_ADDRESS_0;
-    bme280_available = bmp280_init(&bme280_dev, &bme280_params);
+    bool available = bmp280_init(&bme280_dev, &bme280_params);
     xSemaphoreGive(i2c_sem);
 
-    if (!bme280_available)
+    if (!available)
         vTaskDelete(NULL);
 
     bool bme280p = bme280_dev.id == BME280_CHIP_ID;
@@ -102,6 +102,7 @@ static void bme280_read_task(void *pvParameters)
             continue;
         }
 
+        bme280_available = true;
         bme280_temperature = temperature;
         bme280_pressure = pressure;
         bme280_rh = humidity;

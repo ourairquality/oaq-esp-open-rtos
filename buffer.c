@@ -148,7 +148,7 @@ uint32_t emit_leb128(uint8_t *buf, uint32_t start, uint64_t v)
 }
 
 /* Emit a signed leb128. */
-uint32_t emit_leb128_signed(uint8_t *buf, uint32_t start, int32_t v)
+uint32_t emit_leb128_signed(uint8_t *buf, uint32_t start, int64_t v)
 {
     while (1) {
         if (-0x40 <= v && v <= 0x3f) {

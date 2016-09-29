@@ -255,7 +255,7 @@ static void sht2x_read_task(void *pvParameters)
      * Reset the sensor and try reading the serial number to try
      * detecting the sensor.
      */
-    sht2x_available = sht2x_soft_reset() &&
+    bool available = sht2x_soft_reset() &&
         sht2x_get_serial_number(sht2x_serial_number);
 
     /* Set resolution to 12 bit temperature and 14 bit relative humidity. */
@@ -263,14 +263,14 @@ static void sht2x_read_task(void *pvParameters)
     if (sht2x_read_user_register(&user_reg)) {
         user_reg = (user_reg & ~SHT2x_RES_MASK) | SHT2x_RES_12_14BIT;
         if (!sht2x_write_user_register(user_reg))
-            sht2x_available = false;
+            available = false;
     } else {
-        sht2x_available = false;
+        available = false;
     }
 
     xSemaphoreGive(i2c_sem);
 
-    if (!sht2x_available)
+    if (!available)
         vTaskDelete(NULL);
 
     for (;;) {
@@ -299,6 +299,7 @@ static void sht2x_read_task(void *pvParameters)
         uint16_t rh = ((uint16_t) data[2]) << 8 | data[3];
         rh >>= 2; /* Strip the two low status bits */
 
+        sht2x_available = true;
         sht2x_temperature = temp;
         sht2x_rh = rh;
 

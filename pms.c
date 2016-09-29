@@ -122,6 +122,39 @@ static void emit_var_int(int32_t v)
     emitbits(v & 0xffff, 16);
 }
 
+static bool pms_available = false;
+static uint16_t pms_pm1a = 0;
+static uint16_t pms_pm25a = 0;
+static uint16_t pms_pm10a = 0;
+static uint16_t pms_pm1b = 0;
+static uint16_t pms_pm25b = 0;
+static uint16_t pms_pm10b = 0;
+static uint16_t pms_c1 = 0;
+static uint16_t pms_c2 = 0;
+static uint16_t pms_c3 = 0;
+static uint16_t pms_c4 = 0;
+static uint16_t pms_c5 = 0;
+static uint16_t pms_c6 = 0;
+static uint16_t pms_r1 = 0;
+
+bool pms_last_data(uint16_t *pm1a, uint16_t *pm25a, uint16_t *pm10a, uint16_t *pm1b, uint16_t *pm25b, uint16_t *pm10b, uint16_t *c1, uint16_t *c2, uint16_t *c3, uint16_t *c4, uint16_t *c5, uint16_t *c6, uint16_t *r1)
+{
+    *pm1a = pms_pm1a;
+    *pm25a = pms_pm25a;
+    *pm10a = pms_pm10a;
+    *pm1b = pms_pm1b;
+    *pm25b = pms_pm25b;
+    *pm10b = pms_pm10b;
+    *c1 = pms_c1;
+    *c2 = pms_c2;
+    *c3 = pms_c3;
+    *c4 = pms_c4;
+    *c5 = pms_c5;
+    *c6 = pms_c6;
+    *r1 = pms_r1;
+    return pms_available;
+}
+
 /*
  * The particle counter events are compressed. The prior event values are noted
  * here to support delta encoding, and initialized to zeros at the start of each
@@ -264,6 +297,21 @@ static void pms_read_task(void *pvParameters)
             continue;
         }
 
+        pms_available = true;
+        pms_pm1a = pm1a;
+        pms_pm25a = pm25a;
+        pms_pm10a = pm10a;
+        pms_pm1b = pm1b;
+        pms_pm25b = pm25b;
+        pms_pm10b = pm10b;
+        pms_c1 = c1;
+        pms_c2 = c2;
+        pms_c3 = c3;
+        pms_c4 = c4;
+        pms_c5 = c5;
+        pms_c6 = c6;
+        pms_r1 = r1;
+
         while (1) {
             /* Variable length encoding. */
             init_outbuf();
@@ -340,6 +388,6 @@ void init_pms()
             /* For the benefit of the nodemcu board allow swapping uart0 pins. */
             sdk_system_uart_swap();
         }
-        xTaskCreate(&pms_read_task, (signed char *)"PMS reader", 256, NULL, 3, NULL);
+        xTaskCreate(&pms_read_task, (signed char *)"PMS reader", 208, NULL, 3, NULL);
     }
 }

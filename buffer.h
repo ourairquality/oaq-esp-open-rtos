@@ -26,7 +26,7 @@ uint32_t dbuf_append(uint32_t index, uint16_t code, uint8_t *data, uint32_t size
                      int low_res_time, int no_repeat);
 
 uint32_t emit_leb128(uint8_t *buf, uint32_t start, uint64_t v);
-uint32_t emit_leb128_signed(uint8_t *buf, uint32_t start, int32_t v);
+uint32_t emit_leb128_signed(uint8_t *buf, uint32_t start, int64_t v);
 
 
 /* Plantower PMS3003 */
@@ -43,8 +43,10 @@ uint32_t emit_leb128_signed(uint8_t *buf, uint32_t start, int32_t v);
 
 #define DBUF_EVENT_BMP180_TEMP_PRESSURE 6
 
-#define DBUF_EVENT_DS3231_TIME_TEMP 7;
-#define DBUF_EVENT_DS3231_TIME_STEP 8;
+#define DBUF_EVENT_DS3231_TIME_TEMP 7
+#define DBUF_EVENT_DS3231_TIME_STEP 8
 
-#define DBUF_EVENT_BMP280_TEMP_PRESSURE 9;
-#define DBUF_EVENT_BME280_TEMP_PRESSURE_RH 10;
+#define DBUF_EVENT_BMP280_TEMP_PRESSURE 9
+#define DBUF_EVENT_BME280_TEMP_PRESSURE_RH 10
+
+#define DBUF_EVENT_CLIENT_UTIME 11

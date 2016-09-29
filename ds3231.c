@@ -123,10 +123,11 @@ static void ds3231_read_task(void *pvParameters)
     bzero(&ds3231_time, sizeof(ds3231_time));
 
     struct tm time;
-    ds3231_available = ds3231_getTime(&time);
+    bool available = ds3231_getTime(&time);
+
     xSemaphoreGive(i2c_sem);
     
-    if (!ds3231_available)
+    if (!available)
         vTaskDelete(NULL);
 
     for (;;) {
@@ -148,6 +149,7 @@ static void ds3231_read_task(void *pvParameters)
             continue;
         }
 
+        ds3231_available = true;
         ds3231_time = time;
         ds3231_temperature = temperature;
 

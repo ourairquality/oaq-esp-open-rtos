@@ -19,6 +19,8 @@
  *
  */
 
+#include <time.h>
+
 void ds3231_note_time(time_t time);
 void init_ds3231();
 
