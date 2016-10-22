@@ -107,5 +107,5 @@ static void bmp180_read_task(void *pvParameters)
 
 void init_bmp180()
 {
-    xTaskCreate(&bmp180_read_task, (signed char *)"bmp180_read_task", 256, NULL, 2, NULL);
+    xTaskCreate(&bmp180_read_task, "bmp180_read_task", 256, NULL, 2, NULL);
 }

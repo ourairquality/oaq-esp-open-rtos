@@ -343,5 +343,5 @@ static void sht2x_read_task(void *pvParameters)
 
 void init_sht2x()
 {
-    xTaskCreate(&sht2x_read_task, (signed char *)"sht2x_read_task", 256, NULL, 2, NULL);
+    xTaskCreate(&sht2x_read_task, "sht2x_read_task", 256, NULL, 2, NULL);
 }

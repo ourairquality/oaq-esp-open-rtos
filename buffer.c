@@ -481,7 +481,7 @@ void user_init(void)
 
     dbufs_sem = xSemaphoreCreateMutex();
 
-    xTaskCreate(&flash_data_task, (signed char *)"OAQ Flash", 196, NULL, 2, NULL);
+    xTaskCreate(&flash_data_task, "OAQ Flash", 196, NULL, 2, NULL);
 
     /* Log a startup event. */
     uint32_t startup[8 + 1];

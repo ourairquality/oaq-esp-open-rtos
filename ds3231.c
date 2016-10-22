@@ -191,5 +191,5 @@ static void ds3231_read_task(void *pvParameters)
 
 void init_ds3231()
 {
-    xTaskCreate(&ds3231_read_task, (signed char *)"DS3231 reader", 240, NULL, 2, NULL);
+    xTaskCreate(&ds3231_read_task, "DS3231 reader", 240, NULL, 2, NULL);
 }
