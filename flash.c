@@ -384,6 +384,13 @@ uint32_t get_buffer_to_post(uint32_t *index, uint32_t *start, uint8_t *buf)
 
     while (1) {
         if (decode_flash_sector_index(sector, index)) {
+            /*
+             * The index should decrease monotonically so stop searching here if
+             * not because the data is corrupt.
+             */
+            if (index_to_post != 0xffffffff && *index != index_to_post - 1) {
+                break;
+            }
             if (last_index_posted > *index) {
                 /* Bad last_index_posted reset. */
                 last_index_posted = *index;
