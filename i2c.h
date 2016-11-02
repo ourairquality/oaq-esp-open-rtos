@@ -19,6 +19,6 @@
  *
  */
 
-extern xSemaphoreHandle i2c_sem;
+extern SemaphoreHandle_t i2c_sem;
 
 void init_i2c();

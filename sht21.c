@@ -274,7 +274,7 @@ static void sht2x_read_task(void *pvParameters)
         vTaskDelete(NULL);
 
     for (;;) {
-        vTaskDelay(10000 / portTICK_RATE_MS);
+        vTaskDelay(10000 / portTICK_PERIOD_MS);
 
         xSemaphoreTake(i2c_sem, portMAX_DELAY);
 

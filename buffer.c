@@ -100,7 +100,7 @@ static uint32_t dbufs_head;
 static uint32_t dbufs_tail;
 
 /* To synchronize access to the data buffers. */
-static xSemaphoreHandle dbufs_sem;
+static SemaphoreHandle_t dbufs_sem;
 
 /* Return the index for the buffer number. */
 static uint32_t dbuf_index(uint32_t num)
@@ -335,8 +335,8 @@ uint32_t dbuf_append(uint32_t index, uint16_t code, uint8_t *data, uint32_t size
 
     xSemaphoreGive(dbufs_sem);
 
-    /* Wakeup the flash_data_task. */
-    xSemaphoreGive(flash_data_sem);
+    /* Wakeup the flash_data task. */
+    xTaskNotify(flash_data_task, 0, eNoAction);
     return index;
 }
     
@@ -481,7 +481,7 @@ void user_init(void)
 
     dbufs_sem = xSemaphoreCreateMutex();
 
-    xTaskCreate(&flash_data_task, "OAQ Flash", 196, NULL, 2, NULL);
+    xTaskCreate(&flash_data, "OAQ Flash", 196, NULL, 2, &flash_data_task);
 
     /* Log a startup event. */
     uint32_t startup[8 + 1];

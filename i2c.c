@@ -33,7 +33,7 @@
 #include "config.h"
 
 /* To synchronize access to the I2C interface. */
-xSemaphoreHandle i2c_sem;
+SemaphoreHandle_t i2c_sem;
 
 void init_i2c()
 {

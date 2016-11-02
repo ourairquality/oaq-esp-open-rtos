@@ -145,10 +145,10 @@ static uint16_t flash_sector;
 static uint8_t flash_sector_initialized;
 
 /* For signaling and waiting for data to store to flash */
-xSemaphoreHandle flash_data_sem = NULL;
+TaskHandle_t flash_data_task = NULL;
 
 /* For protecting access to the flash state. */
-xSemaphoreHandle flash_state_sem = NULL;
+SemaphoreHandle_t flash_state_sem = NULL;
 static uint8_t flash_buf[4096];
 
 
@@ -227,10 +227,10 @@ static void handle_flash_write_failure()
  * found. */
 static uint32_t maybe_flash_to_post = 1;
 
-void flash_data_task(void *pvParameters)
+void flash_data(void *pvParameters)
 {
     while (1) {
-        xSemaphoreTake(flash_data_sem, 5000 / portTICK_RATE_MS);
+        xTaskNotifyWait(0, 0, NULL, 120000 / portTICK_PERIOD_MS);
 
         /* Try to flush all the pending buffers before waiting again. */
         while (1) {
@@ -318,7 +318,7 @@ void flash_data_task(void *pvParameters)
             xSemaphoreGive(flash_state_sem);
             note_buffer_written(index, size);
             /* Signal the HTTP-Post thread to re-check. */
-            xSemaphoreGive(post_data_sem);
+            xTaskNotify(post_data_task, 0, eNoAction);
         }
     }
 }
@@ -679,7 +679,6 @@ uint32_t init_flash()
     }
     flash_sector_initialized = 0;
 
-    vSemaphoreCreateBinary(flash_data_sem);
     flash_state_sem = xSemaphoreCreateMutex();
 
     return flash_index;

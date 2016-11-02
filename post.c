@@ -44,7 +44,7 @@
 
 
 /* For signaling and waiting for data to post. */
-xSemaphoreHandle post_data_sem = NULL;
+TaskHandle_t post_data_task = NULL;
 
 /*
  * A single buffer is allocated to hold the HTTP data to be sent and it is large
@@ -63,7 +63,7 @@ static uint8_t post_buf[POST_BUFFER_SIZE];
 
 #define MAX_HOLD_OFF_TIME 1800000 /* 30 minutes */
 
-static void post_data_task(void *pvParameters)
+static void post_data(void *pvParameters)
 {
     uint32_t last_index = 0;
     uint32_t last_recv_sec = 0;
@@ -76,7 +76,7 @@ static void post_data_task(void *pvParameters)
     uint32_t hold_off_time = 0;
 
     while (1) {
-        xSemaphoreTake(post_data_sem, 5000 / portTICK_RATE_MS);
+        xTaskNotifyWait(0, 0, NULL, 120000 / portTICK_PERIOD_MS);
 
         /* Try to flush all the pending buffers before waiting again. */
         while (1) {
@@ -90,7 +90,7 @@ static void post_data_task(void *pvParameters)
             /* Hold off if retrying. */
             if (hold_off_time > MAX_HOLD_OFF_TIME)
                 hold_off_time = MAX_HOLD_OFF_TIME;
-            vTaskDelay(hold_off_time / portTICK_RATE_MS);
+            vTaskDelay(hold_off_time / portTICK_PERIOD_MS);
             hold_off_time += (hold_off_time >> 2) + 1000;
 
             /*
@@ -106,7 +106,7 @@ static void post_data_task(void *pvParameters)
                 uint8_t connect_status = sdk_wifi_station_get_connect_status();
                 if (connect_status == STATION_GOT_IP)
                     break;
-                vTaskDelay(1000 / portTICK_RATE_MS);
+                vTaskDelay(1000 / portTICK_PERIOD_MS);
             }
 
             const struct addrinfo hints = {
@@ -350,10 +350,8 @@ static void post_data_task(void *pvParameters)
 
 void init_post()
 {
-    vSemaphoreCreateBinary(post_data_sem);
-
     if (param_web_server && param_web_path && param_sensor_id &&
         param_key_size == 287 && param_sha3_key) {
-        xTaskCreate(&post_data_task, "OAQ Post", 304, NULL, 1, NULL);
+        xTaskCreate(&post_data, "OAQ Post", 304, NULL, 1, &post_data_task);
     }
 }

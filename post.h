@@ -22,4 +22,4 @@
 
 void init_post();
 
-extern xSemaphoreHandle post_data_sem;
+extern TaskHandle_t post_data_task;

@@ -88,7 +88,7 @@ static void bme280_read_task(void *pvParameters)
     bool bme280p = bme280_dev.id == BME280_CHIP_ID;
     
     for (;;) {
-        vTaskDelay(10000 / portTICK_RATE_MS);
+        vTaskDelay(10000 / portTICK_PERIOD_MS);
 
         xSemaphoreTake(i2c_sem, portMAX_DELAY);
 

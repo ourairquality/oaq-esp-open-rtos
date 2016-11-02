@@ -131,7 +131,7 @@ static void ds3231_read_task(void *pvParameters)
         vTaskDelete(NULL);
 
     for (;;) {
-        vTaskDelay(180000 / portTICK_RATE_MS);
+        vTaskDelay(180000 / portTICK_PERIOD_MS);
 
         xSemaphoreTake(i2c_sem, portMAX_DELAY);
 

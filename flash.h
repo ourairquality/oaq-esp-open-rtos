@@ -24,9 +24,9 @@ void note_buffer_posted(uint32_t index, uint32_t size);
 uint32_t maybe_buffer_to_post();
 
 uint32_t init_flash();
-void flash_data_task(void *pvParameters);
+void flash_data(void *pvParameters);
 
-extern xSemaphoreHandle flash_data_sem;
+extern TaskHandle_t flash_data_task;
 
 uint32_t get_buffer_size(uint32_t requested_index, uint32_t *index);
 bool get_buffer_range(uint32_t index, uint32_t start, uint32_t end, uint8_t *buf);
