@@ -318,7 +318,8 @@ void flash_data(void *pvParameters)
             xSemaphoreGive(flash_state_sem);
             note_buffer_written(index, size);
             /* Signal the HTTP-Post thread to re-check. */
-            xTaskNotify(post_data_task, 0, eNoAction);
+            if (post_data_task)
+                xTaskNotify(post_data_task, 0, eNoAction);
         }
     }
 }
