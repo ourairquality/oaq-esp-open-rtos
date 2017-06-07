@@ -74,7 +74,9 @@ static void bme280_read_task(void *pvParameters)
     bmp280_init_default_params(&bme280_params);
     bme280_params.mode = BMP280_MODE_NORMAL;
     bme280_params.filter = BMP280_FILTER_16;
-    bme280_params.oversampling = BMP280_ULTRA_HIGH_RES;
+    bme280_params.oversampling_pressure = BMP280_ULTRA_HIGH_RES;
+    bme280_params.oversampling_temperature = BMP280_ULTRA_HIGH_RES;
+    bme280_params.oversampling_humidity = BMP280_ULTRA_HIGH_RES;
     bme280_params.standby = BMP280_STANDBY_250;
 
     bmp280_t bme280_dev;
