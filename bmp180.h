@@ -1,7 +1,7 @@
 /*
  * Driver for the BMP180 pressure sensor.
  *
- * Copyright (C) 2016 OurAirQuality.org
+ * Copyright (C) 2016, 2017 OurAirQuality.org
  *
  * Licensed under the Apache License, Version 2.0, January 2004 (the
  * "License"); you may not use this file except in compliance with the
@@ -20,3 +20,5 @@
  */
 
 void init_bmp180();
+
+bool bmp180_temp_press(float *temp, float *press);

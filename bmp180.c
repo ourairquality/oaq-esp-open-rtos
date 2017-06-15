@@ -1,7 +1,7 @@
 /*
  * Driver for the BMP180 pressure sensor.
  *
- * Copyright (C) 2016 OurAirQuality.org
+ * Copyright (C) 2016, 2017 OurAirQuality.org
  *
  * Licensed under the Apache License, Version 2.0, January 2004 (the
  * "License"); you may not use this file except in compliance with the
@@ -41,6 +41,23 @@
 
 
 
+static bool bmp180_available = false;
+static int32_t bmp180_temperature = 0;
+static uint32_t bmp180_pressure = 0;
+
+bool bmp180_temp_press(float *temp, float *press)
+{
+    if (!bmp180_available)
+        return false;
+
+    xSemaphoreTake(i2c_sem, portMAX_DELAY);
+    *temp = (float)bmp180_temperature/10.0;
+    *press = (float)bmp180_pressure;
+    xSemaphoreGive(i2c_sem);
+
+    return true;
+}
+
 static void bmp180_read_task(void *pvParameters)
 {
     /* Delta encoding state. */
@@ -49,12 +66,12 @@ static void bmp180_read_task(void *pvParameters)
     uint32_t last_bmp180_pressure = 0;
 
     xSemaphoreTake(i2c_sem, portMAX_DELAY);
-    bmp180_constants_t bmp180_constants;
-    bool bmp180_available = bmp180_is_available() &&
-        bmp180_fillInternalConstants(&bmp180_constants);
+    bmp180_constants_t constants;
+    bool available = bmp180_is_available() &&
+        bmp180_fillInternalConstants(&constants);
     xSemaphoreGive(i2c_sem);
 
-    if (!bmp180_available)
+    if (!available)
         vTaskDelete(NULL);
 
     for (;;) {
@@ -64,12 +81,16 @@ static void bmp180_read_task(void *pvParameters)
 
         int32_t temperature;
         uint32_t pressure;
-        if (!bmp180_measure(&bmp180_constants, &temperature, &pressure, 3)) {
+        if (!bmp180_measure(&constants, &temperature, &pressure, 3)) {
             xSemaphoreGive(i2c_sem);
             blink_red();
             continue;
         }
             
+        bmp180_available = true;
+        bmp180_temperature = temperature;
+        bmp180_pressure = pressure;
+
         xSemaphoreGive(i2c_sem);
 
         while (1) {

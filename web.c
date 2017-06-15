@@ -1,7 +1,7 @@
 /*
  * Web interface.
  *
- * Copyright (C) 2016 OurAirQuality.org
+ * Copyright (C) 2016, 2017 OurAirQuality.org
  *
  * Licensed under the Apache License, Version 2.0, January 2004 (the
  * "License"); you may not use this file except in compliance with the
@@ -45,6 +45,7 @@
 #include "ds3231.h"
 #include "sht21.h"
 #include "bme280.h"
+#include "bmp180.h"
 #include "i2c.h"
 
 #include "config.h"
@@ -110,6 +111,15 @@ static void handle_index(int s, wificfg_method method,
                 snprintf(buf, len, "<dd>%.1f Deg&nbsp;C, %.0f Pa", temp, press);
                 if (wificfg_write_string(s, buf) < 0) return;
                 snprintf(buf, len, ", %.1f&nbsp;%% RH</dd>", rh);
+                if (wificfg_write_string(s, buf) < 0) return;
+            }
+        }
+
+        {
+            float temp, press;
+            if (bmp180_temp_press(&temp, &press)) {
+                if (wificfg_write_string(s, "<dt>BMP180</dt>") < 0) return;
+                snprintf(buf, len, "<dd>%.1f Deg&nbsp;C, %.0f Pa", temp, press);
                 if (wificfg_write_string(s, buf) < 0) return;
             }
         }
