@@ -463,7 +463,6 @@ void note_buffer_written(uint32_t index, uint32_t size)
 
 void user_init(void)
 {
-    uart_set_baud(0, 9600);
     init_params();
 
     init_i2c();

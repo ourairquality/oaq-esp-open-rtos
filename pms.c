@@ -388,6 +388,7 @@ void init_pms()
             /* For the benefit of the nodemcu board allow swapping uart0 pins. */
             sdk_system_uart_swap();
         }
+        uart_set_baud(0, 9600);
         xTaskCreate(&pms_read_task, "PMS reader", 208, NULL, 3, NULL);
     }
 }
