@@ -128,6 +128,14 @@ static void post_data(void *pvParameters)
                 continue;
             }
 
+            /* Route via the station interface, which is always en0. */
+            const struct ifreq ifreq = { "en0" };
+            lwip_setsockopt(s, SOL_SOCKET, SO_BINDTODEVICE, &ifreq, sizeof(ifreq));
+
+            const struct timeval timeout = { 60, 0 }; /* 60 second timeout */
+            setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+            setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+
             if (connect(s, res->ai_addr, res->ai_addrlen) != 0) {
                 close(s);
                 freeaddrinfo(res);
@@ -352,6 +360,11 @@ void init_post()
 {
     if (param_web_server && param_web_path && param_sensor_id &&
         param_key_size == 287 && param_sha3_key) {
-        xTaskCreate(&post_data, "OAQ Post", 304, NULL, 1, &post_data_task);
+        /* Only run the post task if there is a station interface. */
+        uint8_t mode = sdk_wifi_get_opmode();
+        if (mode != STATION_MODE && mode != STATIONAP_MODE) {
+            return;
+        }
+        xTaskCreate(&post_data, "OAQ Post", 416, NULL, 1, &post_data_task);
     }
 }
