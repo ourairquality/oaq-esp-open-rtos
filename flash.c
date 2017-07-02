@@ -662,6 +662,39 @@ bool get_buffer_range(uint32_t index, uint32_t start, uint32_t end, uint8_t *buf
 }
 
 
+/* Erase all the flash data and reinitialize.
+   TODO check how other code interacts with this?
+   Should it clear the buffers too? */
+bool erase_flash_data() {
+    xSemaphoreTake(flash_state_sem, portMAX_DELAY);
+    uint32_t i;
+    bool success = true;
+
+    for (i = 0; i < BUFFER_FLASH_NUM_SECTORS; i++) {
+        uint32_t flash_sector = i + BUFFER_FLASH_FIRST_SECTOR;
+        if (!flash_sector_erased(flash_sector)) {
+            /* Erase the flash_sector. */
+            sdk_SpiFlashOpResult res;
+            res = sdk_spi_flash_erase_sector(flash_sector);
+            taskYIELD();
+            if (res != SPI_FLASH_RESULT_OK ||
+                !flash_sector_erased(flash_sector)) {
+                success = false;
+            }
+        }
+    }
+    /* No valid sectors, start at the first sector. */
+    flash_sector = BUFFER_FLASH_FIRST_SECTOR;
+    flash_sector_initialized = 0;
+    last_index_posted = 0;
+    last_index_size_posted = 0;
+    maybe_flash_to_post = 0;
+
+    xSemaphoreGive(flash_state_sem);
+    return success;
+}
+
+
 uint32_t init_flash()
 {
     uint32_t flash_index;

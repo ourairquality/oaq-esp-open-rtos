@@ -155,5 +155,5 @@ static void bme280_read_task(void *pvParameters)
 
 void init_bme280()
 {
-    xTaskCreate(&bme280_read_task, "BME280 reader", 272, NULL, 2, NULL);
+    xTaskCreate(&bme280_read_task, "BME280 reader", 256, NULL, 2, NULL);
 }

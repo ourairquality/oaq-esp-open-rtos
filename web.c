@@ -367,7 +367,10 @@ static void handle_config(int s, wificfg_method method,
             if (wificfg_write_string(s, http_config_content[21]) < 0) return;
         }
 
+        /* Erase flash */
         if (wificfg_write_string(s, http_config_content[22]) < 0) return;
+
+        if (wificfg_write_string(s, http_config_content[23]) < 0) return;
     }
 }
 
@@ -983,6 +986,24 @@ static void handle_get_buffer_post(int s, wificfg_method method,
     }
 }
 
+static void handle_erase_flash_data_post(int s, wificfg_method method,
+                                         uint32_t content_length,
+                                         wificfg_content_type content_type,
+                                         char *buf, size_t len)
+{
+    if (content_type != HTTP_CONTENT_TYPE_WWW_FORM_URLENCODED) {
+        wificfg_write_string(s, "HTTP/1.0 400 \r\nContent-Type: text/html\r\n\r\n");
+        return;
+    }
+
+    if (!erase_flash_data()) {
+        printf("Warning: error erasing flash?\n");
+    }
+
+    wificfg_write_string(s, http_config_redirect_header);
+}
+
+
 static const wificfg_dispatch dispatch_list[] = {
     {"/", HTTP_METHOD_GET, handle_index, false},
     {"/index.html", HTTP_METHOD_GET, handle_index, false},
@@ -992,6 +1013,7 @@ static const wificfg_dispatch dispatch_list[] = {
     {"/config.html", HTTP_METHOD_POST, handle_config_post, true},
     {"/time", HTTP_METHOD_POST, handle_time_post, true},
     {"/time.html", HTTP_METHOD_POST, handle_time_post, true},
+    {"/eraseflash.html", HTTP_METHOD_POST, handle_erase_flash_data_post, true},
     {"/bufsize", HTTP_METHOD_GET, handle_buffer_size, false},
     {"/bufsize.html", HTTP_METHOD_GET, handle_buffer_size, false},
     {"/bufsize", HTTP_METHOD_POST, handle_buffer_size_post, false},

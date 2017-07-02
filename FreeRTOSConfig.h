@@ -4,7 +4,7 @@
 #define configCHECK_FOR_STACK_OVERFLOW 2
 
 /* IDLE task. */
-#define configMINIMAL_STACK_SIZE 128
+#define configMINIMAL_STACK_SIZE 192
 
 /* Debugging */
 #define configUSE_TRACE_FACILITY 1
