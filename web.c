@@ -196,33 +196,38 @@ static const char *http_config_content[] = {
 
 static char base64codes[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
 
-static int write_base64(int s, uint8_t *in, size_t len)
+static int write_base64_chunked(int s, uint8_t *in, size_t len)
 {
     int i;
+    char buf[3 + 4 + 2];
+    buf[0] = '4';
+    buf[1] = '\r';
+    buf[2] = '\n';
+    buf[7] = '\r';
+    buf[8] = '\n';
     for (i = 0; i < len; i += 3)  {
-        char buf[4];
-        buf[0] = base64codes[(in[i] & 0xFC) >> 2];
+        buf[3] = base64codes[(in[i] & 0xFC) >> 2];
         uint8_t b = (in[i] & 0x03) << 4;
         if (i + 1 < len) {
             b |= (in[i + 1] & 0xF0) >> 4;
-            buf[1] = base64codes[b];
+            buf[4] = base64codes[b];
             b = (in[i + 1] & 0x0F) << 2;
             if (i + 2 < len)  {
                 b |= (in[i + 2] & 0xC0) >> 6;
-                buf[2] = base64codes[b];
+                buf[5] = base64codes[b];
                 b = in[i + 2] & 0x3F;
-                buf[3] = base64codes[b];
+                buf[6] = base64codes[b];
             } else  {
-                buf[2] = base64codes[b];
-                buf[3] = '=';
+                buf[5] = base64codes[b];
+                buf[6] = '=';
             }
         } else      {
-            buf[1] = base64codes[b];
-            buf[2] = '=';
-            buf[3] = '=';
+            buf[4] = base64codes[b];
+            buf[5] = '=';
+            buf[6] = '=';
         }
-        int count = write(s, buf, 4);
-        if (count < 4)
+        int count = write(s, buf, 9);
+        if (count < 9)
             return count;
     }
     return len;
@@ -316,7 +321,7 @@ static int handle_config(int s, wificfg_method method,
         size_t actual_length;
         if (sysparam_get_data("oaq_sha3_key", &sha3_key, &actual_length, NULL) == SYSPARAM_OK) {
             if (sha3_key) {
-                if (write_base64(s, sha3_key, actual_length) < actual_length) {
+                if (write_base64_chunked(s, sha3_key, actual_length) < actual_length) {
                     free(sha3_key);
                     return -1;
                 }
