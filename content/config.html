@@ -91,10 +91,6 @@
 "<dd><input id=\"mday\" type=\"number\" min=\"1\" max=\"31\" step=\"1\" "
 "name=\"oaq_mday\" value=\"",
 "\"></dd>"
-"<dt><label for=\"wday\">Day of week</label></dt>"
-"<dd><input id=\"wday\" type=\"number\" min=\"1\" max=\"7\" step=\"1\" "
-"name=\"oaq_wday\" value=\"",
-"\"></dd>"
 "<dt><label for=\"hour\">Hour</label></dt>"
 "<dd><input id=\"hour\" type=\"number\" min=\"0\" max=\"23\" step=\"1\" "
 "name=\"oaq_hour\" value=\"",
@@ -111,7 +107,7 @@
 "<center><input type=\"reset\">&nbsp;<input type=\"submit\" value=\"Save\"></center>"
 "</fieldset>"
 "</form>",
-"<form action=\"/erasedata.html\" method=\"post\">"
+"<form action=\"/erasedata.html\" method=\"post\" onsubmit=\"return confirm('Are you sure you want to erase the data?');\">"
 "<fieldset>"
 "<legend>Erase the data stored in flash memory</legend>"
 "<p>Erases the data stored in the flash, but not the configuration information.</p>"

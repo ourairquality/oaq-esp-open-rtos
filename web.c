@@ -89,7 +89,7 @@ static int handle_index(int s, wificfg_method method,
                 gmtime_r(&clock_time, &time);
 
                 if (wificfg_write_string_chunk(s, "<dt>DS3231</dt>", buf, len) < 0) return -1;
-                const char *wday[7] = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
+                const char *wday[7] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
                 snprintf(buf, len, "<dd>%02u:%02u:%02u %s %u/%u/%u", time.tm_hour, time.tm_min, time.tm_sec, wday[time.tm_wday], time.tm_mday, time.tm_mon + 1, time.tm_year + 1900);
                 if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
                 snprintf(buf, len, ", %.1f Deg&nbsp;C</dd>", temp);
@@ -196,9 +196,11 @@ static const char *http_config_content[] = {
 
 static char base64codes[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
 
+/* Emit a new line after 19 * 4 (76) characters. */
 static int write_base64_chunked(int s, uint8_t *in, size_t len)
 {
     int i;
+    int line = 0;
     char buf[3 + 4 + 2];
     buf[0] = '4';
     buf[1] = '\r';
@@ -206,6 +208,12 @@ static int write_base64_chunked(int s, uint8_t *in, size_t len)
     buf[7] = '\r';
     buf[8] = '\n';
     for (i = 0; i < len; i += 3)  {
+        if (line >= 76) {
+            int count = write(s, "1\r\n\n\r\n", 6);
+            if (count < 6)
+                return count;
+            line = 0;
+        }
         buf[3] = base64codes[(in[i] & 0xFC) >> 2];
         uint8_t b = (in[i] & 0x03) << 4;
         if (i + 1 < len) {
@@ -229,6 +237,7 @@ static int write_base64_chunked(int s, uint8_t *in, size_t len)
         int count = write(s, buf, 9);
         if (count < 9)
             return count;
+        line += 4;
     }
     return len;
 }
@@ -250,7 +259,7 @@ static int handle_config(int s, wificfg_method method,
         if (board == 1 && wificfg_write_string_chunk(s, " selected", buf, len) < 0) return -1;
         if (wificfg_write_string_chunk(s, http_config_content[2], buf, len) < 0) return -1;
 
-        int8_t pms_uart = 1; /* Enabled, RX */
+        int8_t pms_uart = 2; /* Enabled, RX */
         sysparam_get_int8("oaq_pms_uart", &pms_uart);
         if (pms_uart == 0 && wificfg_write_string_chunk(s, " selected", buf, len) < 0) return -1;
         if (wificfg_write_string_chunk(s, http_config_content[3], buf, len) < 0) return -1;
@@ -359,31 +368,26 @@ static int handle_config(int s, wificfg_method method,
 
             if (wificfg_write_string_chunk(s, http_config_content[17], buf, len) < 0) return -1;
 
-            snprintf(buf, len, "%d", time.tm_wday + 1);
+            snprintf(buf, len, "%d", time.tm_hour);
             if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
             if (wificfg_write_string_chunk(s, http_config_content[18], buf, len) < 0) return -1;
 
-            snprintf(buf, len, "%d", time.tm_hour);
+            snprintf(buf, len, "%d", time.tm_min);
             if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
             if (wificfg_write_string_chunk(s, http_config_content[19], buf, len) < 0) return -1;
 
-            snprintf(buf, len, "%d", time.tm_min);
-            if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
-
-            if (wificfg_write_string_chunk(s, http_config_content[20], buf, len) < 0) return -1;
-
             snprintf(buf, len, "%d", time.tm_sec);
             if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
-            if (wificfg_write_string_chunk(s, http_config_content[21], buf, len) < 0) return -1;
+            if (wificfg_write_string_chunk(s, http_config_content[20], buf, len) < 0) return -1;
         }
 
         /* Erase flash */
-        if (wificfg_write_string_chunk(s, http_config_content[22], buf, len) < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_config_content[21], buf, len) < 0) return -1;
 
-        if (wificfg_write_string_chunk(s, http_config_content[23], buf, len) < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_config_content[22], buf, len) < 0) return -1;
 
         if (wificfg_write_chunk_end(s) < 0) return -1;
     }
@@ -404,7 +408,6 @@ typedef enum {
     FORM_NAME_YEAR,
     FORM_NAME_MONTH,
     FORM_NAME_MDAY,
-    FORM_NAME_WDAY,
     FORM_NAME_HOUR,
     FORM_NAME_MIN,
     FORM_NAME_SEC,
@@ -433,7 +436,6 @@ static const struct {
     {"oaq_year", FORM_NAME_YEAR},
     {"oaq_month", FORM_NAME_MONTH},
     {"oaq_mday", FORM_NAME_MDAY},
-    {"oaq_wday", FORM_NAME_WDAY},
     {"oaq_hour", FORM_NAME_HOUR},
     {"oaq_min", FORM_NAME_MIN},
     {"oaq_sec", FORM_NAME_SEC},
@@ -484,15 +486,20 @@ static const uint8_t base64table[256] =
 
 /*
  * Decode a form-url encoded value with base64 encoded binary data.
+ *
+ * TODO this does not validate and consume the end properly.
  */
 static uint8_t *read_base64(int s, int len, size_t *rem)
 {
+    if (len == 0)
+        return NULL;
+
     uint8_t *decoded = malloc(len);
     if (!decoded)
         return NULL;
 
     int j = 0;
-    while (*rem > 0 && j < len) {
+    while (*rem > 0) {
         /* Read four characters ignoring noise */
         uint8_t b[4];
         int n = 0;
@@ -500,16 +507,27 @@ static uint8_t *read_base64(int s, int len, size_t *rem)
             char c;
             int r = read(s, &c, 1);
             /* Expecting a known number of characters so fail on EOF. */
-            if (r < 1) return NULL;
+            if (r < 1) {
+                free(decoded);
+                return NULL;
+            }
             (*rem)--;
             if (c == '%') {
-                if (*rem < 2)
+                if (*rem < 2) {
+                    free(decoded);
                     return NULL;
+                }
                 unsigned char c2[2];
                 int r = read(s, &c2, 2);
-                if (r < 0) return NULL;
+                if (r < 0) {
+                    free(decoded);
+                    return NULL;
+                }
                 (*rem) -= r;
-                if (r < 2) return NULL;
+                if (r < 2) {
+                    free(decoded);
+                    return NULL;
+                }
                 if (isxdigit(c2[0]) && isxdigit(c2[1])) {
                     c2[0] = tolower(c2[0]);
                     int d1 = (c2[0] >= 'a' && c2[0] <= 'z') ? c2[0] - 'a' + 10 : c2[0] - '0';
@@ -524,6 +542,7 @@ static uint8_t *read_base64(int s, int len, size_t *rem)
                 }
             } else if (c == '&') {
                 /* Ended early. */
+                free(decoded);
                 return NULL;
             } else {
                 int v = base64table[(int)c];
@@ -544,11 +563,15 @@ static uint8_t *read_base64(int s, int len, size_t *rem)
                 return decoded;
             if (b[3] < 64) {
                 decoded[j++] = (b[2] << 6) | b[3];
+                if (j >= len)
+                    return decoded;
             }
         }
     }
 
-    return decoded;
+    /* Ran out of input to fill the requested length */
+    free(decoded);
+    return NULL;
 }
 
 static int handle_config_post(int s, wificfg_method method,
@@ -580,6 +603,8 @@ static int handle_config_post(int s, wificfg_method method,
         if (valp) {
             if (name == FORM_NAME_SHA3_KEY) {
                 uint8_t *key = read_base64(s, 287, &rem);
+                // TODO if there were not the last value then it
+                // would be necessary to skip to the '&' character.
                 if (key) {
                     sysparam_set_data("oaq_sha3_key", key, 287, true);
                     free(key);
@@ -709,12 +734,6 @@ static int handle_time_post(int s, wificfg_method method,
                     time.tm_mday = mday;
                 break;
             }
-            case FORM_NAME_WDAY: {
-                int32_t wday = strtol(buf, NULL, 10);
-                if (wday >= 1 && wday <= 31)
-                    time.tm_wday = wday - 1;
-                break;
-            }
             case FORM_NAME_HOUR: {
                 int32_t hour = strtol(buf, NULL, 10);
                 if (hour >= 0 && hour <= 32)
@@ -743,6 +762,7 @@ static int handle_time_post(int s, wificfg_method method,
         /* Apply the time zone. */
         int8_t tz = 0;
         sysparam_get_int8("oaq_tz", &tz);
+        /* Note the original values of tm_wday and tm_yday are ignored by mktime */
         time_t clock_time = mktime(&time);
         clock_time += tz * 60 * 60;
         gmtime_r(&clock_time, &time);
@@ -1072,21 +1092,9 @@ static const wificfg_dispatch dispatch_list[] = {
 
 void init_web()
 {
-    /* Default AP params. */
-    char *wifi_ap_ssid = NULL;
-    sysparam_get_string("wifi_ap_ssid", &wifi_ap_ssid);
-    if (!wifi_ap_ssid) {
-        sysparam_set_string("wifi_ap_ssid", "esp-open-rtos AP");
-    } else {
-        free(wifi_ap_ssid);
-    }
-    char *wifi_ap_password = NULL;
-    sysparam_get_string("wifi_ap_password", &wifi_ap_password);
-    if (!wifi_ap_password) {
-        sysparam_set_string("wifi_ap_password", "esp-open-rtos");
-    } else {
-        free(wifi_ap_password);
-    }
+    /* Override the wificfg default AP name and password. */
+    wificfg_default_ssid = "OAQ_%02X%02X%02X";
+    wificfg_default_password = "oaqwifipw";
 
     sdk_wifi_set_sleep_type(WIFI_SLEEP_MODEM);
 
