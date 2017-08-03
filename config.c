@@ -47,7 +47,7 @@ void init_params()
     sysparam_status_t status;
 
     param_board = 0;
-    param_pms_uart = 1;
+    param_pms_uart = 2;
     param_i2c_scl = 0;
     param_i2c_sda = 2;
     param_web_server = NULL;
