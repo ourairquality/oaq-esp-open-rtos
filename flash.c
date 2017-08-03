@@ -65,12 +65,17 @@
 /*
  * For a 32Mbit flash, or 4MB, there are 1024 flash sectors. The first 256 are
  * reserved here for the user code, but it might be possible to use more. The
- * last 4 sectors are reserved for the SDK code. DEFAULT_SYSPARAM_SECTORS are
- * used for the system parameters. That leaves 760 sectors to use to store the
- * buffers.
+ * last 5 sectors are reserved for the SDK code. DEFAULT_SYSPARAM_SECTORS (which
+ * is 4) are used for the system parameters. That leaves 759 sectors to use to
+ * store the data buffers.
+ *
+ * Note the current esp-open-rtos SDK binary uses only 4 sector for parameters,
+ * but recent SDKs also want a sector for RF-cal data and that defaults to the
+ * fifth sector from the end. So to be consistent with both this code allows for
+ * 5 reserved sectors at the end of the flash.
  */
 #define BUFFER_FLASH_FIRST_SECTOR 256
-#define BUFFER_FLASH_NUM_SECTORS (764 - DEFAULT_SYSPARAM_SECTORS)
+#define BUFFER_FLASH_NUM_SECTORS (1024 - BUFFER_FLASH_FIRST_SECTOR - 5 - DEFAULT_SYSPARAM_SECTORS)
 
 /*
  * Read and decode a sector index, filling the index on success and returning 1,
