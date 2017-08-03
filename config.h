@@ -47,6 +47,13 @@ extern uint8_t param_i2c_scl;
 extern uint8_t param_i2c_sda;
 
 /*
+ * Logging to the data buffers can be disabled by clearing this variable, and
+ * this is the start of the data flow so it stops more data entering, but it
+ * continues to trigger writes to flush the pipeline.
+ */
+extern bool param_logging;
+
+/*
  * Network parameters. If not sufficiently initialized to communicate with a
  * server then wifi is disabled and the post-data task is not created.
  */

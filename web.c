@@ -73,8 +73,23 @@ static int handle_index(int s, wificfg_method method,
     
     if (method != HTTP_METHOD_HEAD) {
         if (wificfg_write_string_chunk(s, http_index_content[0], buf, len) < 0) return -1;
-        if (wificfg_write_string_chunk(s, "<center><h2>Last logged data</h2></center>", buf, len) < 0) return -1;
+
         if (wificfg_write_string_chunk(s, "<dl class=\"dlh\">", buf, len) < 0) return -1;
+
+        int8_t logging = 0;
+        sysparam_get_int8("oaq_logging", &logging);
+        if (logging) {
+            if (wificfg_write_string_chunk(s, "<dt>Logging is enabled</dt><dd><form action=\"/logging.html\" method=\"post\"\"><button name=\"oaq_logging\" type=\"submit\" value=\"0\">Disable logging</button><input type=\"hidden\" name=\"done\"></form></dd>", buf, len) < 0) return -1;
+        } else {
+            if (wificfg_write_string_chunk(s, "<dt>Logging is disable</dt><dd><form action=\"/logging.html\" method=\"post\"\"><button name=\"oaq_logging\" type=\"submit\" value=\"1\">Enable logging</button><input type=\"hidden\" name=\"done\"></form></dd>", buf, len) < 0) return -1;
+        }
+
+        uint32_t index;
+        uint32_t size = get_buffer_size(0xffffffff, &index);
+        snprintf(buf, len, "<dt>Flash sector</dt><dd>index %d, size %d</dd>", index, size);
+        if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
+
+        if (wificfg_write_string_chunk(s, "<dt>Last measured data:</dt><dd></dd>", buf, len) < 0) return -1;
 
         {
             struct tm time;
@@ -121,7 +136,7 @@ static int handle_index(int s, wificfg_method method,
             float temp, press;
             if (bmp180_temp_press(&temp, &press)) {
                 if (wificfg_write_string_chunk(s, "<dt>BMP180</dt>", buf, len) < 0) return -1;
-                snprintf(buf, len, "<dd>%.1f Deg&nbsp;C, %.0f Pa", temp, press);
+                snprintf(buf, len, "<dd>%.1f Deg&nbsp;C, %.0f Pa</dd>", temp, press);
                 if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
             }
         }
@@ -289,6 +304,11 @@ static int handle_config(int s, wificfg_method method,
 
         if (wificfg_write_string_chunk(s, http_config_content[8], buf, len) < 0) return -1;
 
+        int8_t logging = 0;
+        sysparam_get_int8("oaq_logging", &logging);
+        if (logging && wificfg_write_string_chunk(s, "checked", buf, len) < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_config_content[9], buf, len) < 0) return -1;
+
         char *web_server = NULL;
         sysparam_get_string("oaq_web_server", &web_server);
         if (web_server) {
@@ -297,14 +317,14 @@ static int handle_config(int s, wificfg_method method,
             if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
         }
 
-        if (wificfg_write_string_chunk(s, http_config_content[9], buf, len) < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_config_content[10], buf, len) < 0) return -1;
 
         int32_t web_port = 80;
         sysparam_get_int32("oaq_web_port", &web_port);
         snprintf(buf, len, "%d", web_port);
         if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
-        if (wificfg_write_string_chunk(s, http_config_content[10], buf, len) < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_config_content[11], buf, len) < 0) return -1;
 
         char *web_path = NULL;
         sysparam_get_string("oaq_web_path", &web_path);
@@ -316,7 +336,7 @@ static int handle_config(int s, wificfg_method method,
         }
         if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
-        if (wificfg_write_string_chunk(s, http_config_content[11], buf, len) < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_config_content[12], buf, len) < 0) return -1;
 
         int32_t sensor_id = 0;
         if (sysparam_get_int32("oaq_sensor_id", &sensor_id) == SYSPARAM_OK) {
@@ -324,7 +344,7 @@ static int handle_config(int s, wificfg_method method,
             if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
         }
 
-        if (wificfg_write_string_chunk(s, http_config_content[12], buf, len) < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_config_content[13], buf, len) < 0) return -1;
 
         uint8_t *sha3_key = NULL;
         size_t actual_length;
@@ -338,7 +358,7 @@ static int handle_config(int s, wificfg_method method,
             }
         }
 
-        if (wificfg_write_string_chunk(s, http_config_content[13], buf, len) < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_config_content[14], buf, len) < 0) return -1;
 
         struct tm time;
         xSemaphoreTake(i2c_sem, portMAX_DELAY);
@@ -351,43 +371,43 @@ static int handle_config(int s, wificfg_method method,
             clock_time -= tz * 60 * 60;
             gmtime_r(&clock_time, &time);
 
-            if (wificfg_write_string_chunk(s, http_config_content[14], buf, len) < 0) return -1;
+            if (wificfg_write_string_chunk(s, http_config_content[15], buf, len) < 0) return -1;
 
             snprintf(buf, len, "%d", time.tm_year + 1900);
             if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
-            if (wificfg_write_string_chunk(s, http_config_content[15], buf, len) < 0) return -1;
+            if (wificfg_write_string_chunk(s, http_config_content[16], buf, len) < 0) return -1;
 
             snprintf(buf, len, "%d", time.tm_mon + 1);
             if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
-            if (wificfg_write_string_chunk(s, http_config_content[16], buf, len) < 0) return -1;
+            if (wificfg_write_string_chunk(s, http_config_content[17], buf, len) < 0) return -1;
 
             snprintf(buf, len, "%d", time.tm_mday);
             if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
-            if (wificfg_write_string_chunk(s, http_config_content[17], buf, len) < 0) return -1;
+            if (wificfg_write_string_chunk(s, http_config_content[18], buf, len) < 0) return -1;
 
             snprintf(buf, len, "%d", time.tm_hour);
             if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
-            if (wificfg_write_string_chunk(s, http_config_content[18], buf, len) < 0) return -1;
+            if (wificfg_write_string_chunk(s, http_config_content[19], buf, len) < 0) return -1;
 
             snprintf(buf, len, "%d", time.tm_min);
             if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
-            if (wificfg_write_string_chunk(s, http_config_content[19], buf, len) < 0) return -1;
+            if (wificfg_write_string_chunk(s, http_config_content[20], buf, len) < 0) return -1;
 
             snprintf(buf, len, "%d", time.tm_sec);
             if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
-            if (wificfg_write_string_chunk(s, http_config_content[20], buf, len) < 0) return -1;
+            if (wificfg_write_string_chunk(s, http_config_content[21], buf, len) < 0) return -1;
         }
 
         /* Erase flash */
-        if (wificfg_write_string_chunk(s, http_config_content[21], buf, len) < 0) return -1;
-
         if (wificfg_write_string_chunk(s, http_config_content[22], buf, len) < 0) return -1;
+
+        if (wificfg_write_string_chunk(s, http_config_content[23], buf, len) < 0) return -1;
 
         if (wificfg_write_chunk_end(s) < 0) return -1;
     }
@@ -400,6 +420,7 @@ typedef enum {
     FORM_NAME_I2C_SCL,
     FORM_NAME_I2C_SDA,
     FORM_NAME_TZ,
+    FORM_NAME_LOGGING,
     FORM_NAME_WEB_SERVER,
     FORM_NAME_WEB_PORT,
     FORM_NAME_WEB_PATH,
@@ -416,6 +437,7 @@ typedef enum {
     FORM_NAME_INDEX,
     FORM_NAME_START,
     FORM_NAME_END,
+    FORM_NAME_DONE,
     FORM_NAME_NONE
 } form_name;
 
@@ -428,6 +450,7 @@ static const struct {
     {"oaq_i2c_scl", FORM_NAME_I2C_SCL},
     {"oaq_i2c_sda", FORM_NAME_I2C_SDA},
     {"oaq_tz", FORM_NAME_TZ},
+    {"oaq_logging", FORM_NAME_LOGGING},
     {"oaq_web_server", FORM_NAME_WEB_SERVER},
     {"oaq_web_port", FORM_NAME_WEB_PORT},
     {"oaq_web_path", FORM_NAME_WEB_PATH},
@@ -444,6 +467,7 @@ static const struct {
     {"oaq_index", FORM_NAME_INDEX},
     {"oaq_start", FORM_NAME_START},
     {"oaq_end", FORM_NAME_END},
+    {"done", FORM_NAME_DONE},
 };
 
 static form_name intern_form_name(char *str)
@@ -456,13 +480,77 @@ static form_name intern_form_name(char *str)
      return FORM_NAME_NONE;
 }
 
+static const char http_home_redirect[] = "HTTP/1.1 302 \r\n"
+    "Location: /\r\n"
+    "Content-Length: 0\r\n"
+    "Connection: close\r\n"
+    "\r\n";
+
+static int handle_logging_post(int s, wificfg_method method,
+                               uint32_t content_length,
+                               wificfg_content_type content_type,
+                               char *buf, size_t len)
+{
+    if (content_type != HTTP_CONTENT_TYPE_WWW_FORM_URLENCODED) {
+        return wificfg_write_string(s, "HTTP/1.1 400 \r\n"
+                                    "Content-Type: text/html\r\n"
+                                    "Content-Length: 0\r\n"
+                                    "Connection: close\r\n"
+                                    "\r\n");
+    }
+
+    size_t rem = content_length;
+    bool valp = false;
+
+    /* Delay committing some values until all have been read. */
+    bool done = false;
+    int8_t logging = 0;
+
+    while (rem > 0) {
+        int r = wificfg_form_name_value(s, &valp, &rem, buf, len);
+
+        if (r < 0)
+            break;
+
+        wificfg_form_url_decode(buf);
+
+        form_name name = intern_form_name(buf);
+
+        if (valp) {
+            int r = wificfg_form_name_value(s, NULL, &rem, buf, len);
+            if (r < 0)
+                break;
+
+            wificfg_form_url_decode(buf);
+
+            switch (name) {
+            case FORM_NAME_LOGGING: {
+                logging = strtol(buf, NULL, 10) != 0;
+                break;
+            }
+            case FORM_NAME_DONE:
+                done = true;
+                break;
+            default:
+                break;
+            }
+        }
+    }
+
+    if (done) {
+        sysparam_set_int8("oaq_logging", logging);
+        set_buffer_logging(logging);
+    }
+
+    return wificfg_write_string(s, http_home_redirect);
+}
+
+
 static const char http_config_redirect_header[] = "HTTP/1.1 302 \r\n"
     "Location: /config.html\r\n"
     "Content-Length: 0\r\n"
     "Connection: close\r\n"
     "\r\n";
-
-
 
 static const uint8_t base64table[256] =
 {
@@ -590,6 +678,10 @@ static int handle_config_post(int s, wificfg_method method,
     size_t rem = content_length;
     bool valp = false;
 
+    /* Delay committing some values until all have been read. */
+    bool done = false;
+    int8_t logging = 0;
+
     while (rem > 0) {
         int r = wificfg_form_name_value(s, &valp, &rem, buf, len);
 
@@ -647,6 +739,10 @@ static int handle_config_post(int s, wificfg_method method,
                         sysparam_set_int8("oaq_tz", tz);
                     break;
                 }
+                case FORM_NAME_LOGGING: {
+                    logging = strtol(buf, NULL, 10) != 0;
+                    break;
+                }
                 case FORM_NAME_WEB_SERVER: {
                     sysparam_set_string("oaq_web_server", buf);
                     break;
@@ -666,12 +762,20 @@ static int handle_config_post(int s, wificfg_method method,
                     sysparam_set_int32("oaq_sensor_id", id);
                     break;
                 }
+                case FORM_NAME_DONE:
+                    done = true;
+                    break;
                 case FORM_NAME_SHA3_KEY:
                 default:
                     break;
                 }
             }
         }
+    }
+
+    if (done) {
+        sysparam_set_int8("oaq_logging", logging);
+        set_buffer_logging(logging);
     }
 
     return wificfg_write_string(s, http_config_redirect_header);
@@ -1074,6 +1178,8 @@ static int handle_erase_data_post(int s, wificfg_method method,
 static const wificfg_dispatch dispatch_list[] = {
     {"/", HTTP_METHOD_GET, handle_index, false},
     {"/index.html", HTTP_METHOD_GET, handle_index, false},
+    {"/logging", HTTP_METHOD_POST, handle_logging_post, true},
+    {"/logging.html", HTTP_METHOD_POST, handle_logging_post, true},
     {"/config", HTTP_METHOD_GET, handle_config, true},
     {"/config.html", HTTP_METHOD_GET, handle_config, true},
     {"/config", HTTP_METHOD_POST, handle_config_post, true},

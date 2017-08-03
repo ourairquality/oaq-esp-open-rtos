@@ -234,6 +234,16 @@ static uint32_t maybe_flash_to_post = 1;
 
 void flash_data(void *pvParameters)
 {
+    /*
+     * Delay starting to write to flash as the power can bounce on and off if
+     * the battery is low, and that would consume flash sectors quickly and
+     * might even damage them?
+     *
+     * This delay also gives a brief period to allow use of the device without
+     * it modifying the flash.
+     */
+    vTaskDelay(180000 / portTICK_PERIOD_MS);
+
     while (1) {
         xTaskNotifyWait(0, 0, NULL, 120000 / portTICK_PERIOD_MS);
 
@@ -669,8 +679,14 @@ bool get_buffer_range(uint32_t index, uint32_t start, uint32_t end, uint8_t *buf
 
 /* Erase all the flash data and reinitialize.
    TODO check how other code interacts with this?
-   Should it clear the buffers too? */
+   */
 bool erase_flash_data() {
+    /*
+     * Disable buffer logging during this operation.
+     */
+    bool logging = set_buffer_logging(0);
+    reset_dbuf();
+
     xSemaphoreTake(flash_state_sem, portMAX_DELAY);
     uint32_t i;
     bool success = true;
@@ -696,6 +712,7 @@ bool erase_flash_data() {
     maybe_flash_to_post = 0;
 
     xSemaphoreGive(flash_state_sem);
+    set_buffer_logging(logging);
     return success;
 }
 

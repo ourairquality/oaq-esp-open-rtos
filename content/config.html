@@ -45,6 +45,9 @@
 "<dd><input id=\"tz\" type=\"number\" min=\"-12\" max=\"12\" step=\"1\" "
 "name=\"oaq_tz\" value=\"",
 "\"></dd>"
+"<dt><label for=\"logging\">Data logging enabled</label></dt>"
+"<dd><input id=\"logging\" type=\"checkbox\" name=\"oaq_logging\" value=\"1\" ",
+" /></dd>"
 "</dl>"
 "<fieldset>"
 "<legend>Settings required only for posting data to a server</legend>"
@@ -73,6 +76,7 @@
 "</fieldset>"
 "<p style=\"text-align:center\"><input type=\"reset\">&nbsp;<input type=\"submit\" value=\"Save\"></p>"
 "</fieldset>"
+"<input type=\"hidden\" name=\"done\">"
 "</form>",
 "<form action=\"/time.html\" method=\"post\">"
 "<fieldset>"
@@ -110,7 +114,7 @@
 "<form action=\"/erasedata.html\" method=\"post\" onsubmit=\"return confirm('Are you sure you want to erase the data?');\">"
 "<fieldset>"
 "<legend>Erase the data stored in flash memory</legend>"
-"<p>Erases the data stored in the flash, but not the configuration information.</p>"
+"<p>Erases the data stored in the flash, but not the configuration information. This can take some time.</p>"
 "<center><button>Erase Data</button></center>"
 "</fieldset>"
 "</form>",

@@ -67,6 +67,7 @@
 #include "ds3231.h"
 
 
+
 #define DBUF_DATA_SIZE 4096
 
 typedef struct {
@@ -102,6 +103,12 @@ static uint32_t dbufs_tail;
 /* To synchronize access to the data buffers. */
 static SemaphoreHandle_t dbufs_sem;
 
+/*
+ * Logging to the data buffers can be disabled by clearing this variable, and
+ * this is the start of the data flow so it stops more data entering.
+ */
+static bool dbuf_logging_enabled = true;
+
 /* Return the index for the buffer number. */
 static uint32_t dbuf_index(uint32_t num)
 {
@@ -133,6 +140,13 @@ static void initialize_dbuf(uint32_t num)
     dbuf->write_time = time;
     memset(dbuf->data, 0xff, DBUF_DATA_SIZE);
 }
+
+bool set_buffer_logging(bool enable) {
+    bool old_value = dbuf_logging_enabled;
+    dbuf_logging_enabled = enable;
+    return old_value;
+}
+
 
 /* Emit an unsigned leb128. */
 uint32_t emit_leb128(uint8_t *buf, uint32_t start, uint64_t v)
@@ -198,6 +212,20 @@ uint32_t dbuf_append(uint32_t index, uint16_t code, uint8_t *data, uint32_t size
                      int low_res_time, int no_repeat)
 {
     xSemaphoreTake(dbufs_sem, portMAX_DELAY);
+
+    if (!dbuf_logging_enabled) {
+        xSemaphoreGive(dbufs_sem);
+
+        /*
+         * Continue to wakeup the flash_data task, even if new data is not
+         * being accepted into the data buffers.
+         */
+        if (flash_data_task)
+            xTaskNotify(flash_data_task, 0, eNoAction);
+
+        /* Consume it to allow the caller to proceed. */
+        return index;
+    }
 
     uint32_t current_index = dbuf_index(dbufs_head);
     if (index != current_index) {
@@ -336,7 +364,9 @@ uint32_t dbuf_append(uint32_t index, uint16_t code, uint8_t *data, uint32_t size
     xSemaphoreGive(dbufs_sem);
 
     /* Wakeup the flash_data task. */
-    xTaskNotify(flash_data_task, 0, eNoAction);
+    if (flash_data_task)
+        xTaskNotify(flash_data_task, 0, eNoAction);
+
     return index;
 }
     
@@ -459,6 +489,22 @@ void note_buffer_written(uint32_t index, uint32_t size)
     blink_blue();
 }
 
+/*
+ * Reset the buffers, discarding any data in them. The index is reset to zero.
+ */
+void reset_dbuf()
+{
+    dbufs_head = 0;
+    dbufs_tail = 0;
+    initialize_dbuf(dbufs_head);
+    set_dbuf_index(dbufs_head, 0);
+    dbufs[dbufs_head].size = 8;
+
+    last_code = 0;
+    last_size = 0;
+    last_time = 0;
+}
+
 
 
 void user_init(void)
@@ -480,7 +526,12 @@ void user_init(void)
 
     dbufs_sem = xSemaphoreCreateMutex();
 
-    xTaskCreate(&flash_data, "OAQ Flash", 196, NULL, 2, &flash_data_task);
+    set_buffer_logging(param_logging);
+
+    init_blink();
+    blink_red();
+    blink_blue();
+    blink_green();
 
     /* Log a startup event. */
     uint32_t startup[8 + 1];
@@ -501,17 +552,15 @@ void user_init(void)
         last_index = new_index;
     }
 
-    init_web();
-    init_post();
-
-    init_blink();
-    blink_red();
-    blink_blue();
-    blink_green();
-
+    /* Start logging to the RAM buffer immediately. */
     init_pms();
     init_sht2x();
     init_bmp180();
     init_bme280();
     init_ds3231();
+
+    init_web();
+    init_post();
+
+    xTaskCreate(&flash_data, "OAQ Flash", 196, NULL, 2, &flash_data_task);
 }

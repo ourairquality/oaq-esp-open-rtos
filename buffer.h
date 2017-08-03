@@ -19,11 +19,13 @@
  *
  */
 
+bool set_buffer_logging(bool enable);
 uint32_t get_buffer_to_write(uint8_t *buf, uint32_t *start);
 void note_buffer_written(uint32_t index, uint32_t size);
 uint32_t dbuf_head_index();
 uint32_t dbuf_append(uint32_t index, uint16_t code, uint8_t *data, uint32_t size,
                      int low_res_time, int no_repeat);
+void reset_dbuf(void);
 
 uint32_t emit_leb128(uint8_t *buf, uint32_t start, uint64_t v);
 uint32_t emit_leb128_signed(uint8_t *buf, uint32_t start, int64_t v);
