@@ -42,16 +42,18 @@
 
 
 static bool bme280_available = false;
+static uint32_t bme280_counter = 0;
 static int32_t bme280_temperature = 0;
 static uint32_t bme280_pressure = 0;
 static uint32_t bme280_rh = 0;
 
-bool bme280_temp_press_rh(float *temp, float *press, float *rh)
+bool bme280_temp_press_rh(uint32_t *counter, float *temp, float *press, float *rh)
 {
     if (!bme280_available)
         return false;
 
     xSemaphoreTake(i2c_sem, portMAX_DELAY);
+    *counter = bme280_counter;
     *temp = (float)bme280_temperature/100.0;
     *press = (float)bme280_pressure/256.0;
     *rh = (float)bme280_rh/1024.0;
@@ -105,6 +107,7 @@ static void bme280_read_task(void *pvParameters)
         }
 
         bme280_available = true;
+        bme280_counter = RTC.COUNTER;
         bme280_temperature = temperature;
         bme280_pressure = pressure;
         bme280_rh = humidity;

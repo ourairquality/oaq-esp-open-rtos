@@ -92,10 +92,11 @@ static int handle_index(int s, wificfg_method method,
         if (wificfg_write_string_chunk(s, "<dt>Last measured data:</dt><dd></dd>", buf, len) < 0) return -1;
 
         {
+            uint32_t counter;
             struct tm time;
             float temp;
 
-            if (ds3231_time_temp(&time, &temp)) {
+            if (ds3231_time_temp(&counter, &time, &temp)) {
                 /* Apply the time zone. */
                 int8_t tz = 0;
                 sysparam_get_int8("oaq_tz", &tz);
@@ -113,8 +114,9 @@ static int handle_index(int s, wificfg_method method,
         }
 
         {
+            uint32_t counter;
             float temp, rh;
-            if (sht2x_temp_rh(&temp, &rh)) {
+            if (sht2x_temp_rh(&counter, &temp, &rh)) {
                 if (wificfg_write_string_chunk(s, "<dt>SHT2x</dt>", buf, len) < 0) return -1;
                 snprintf(buf, len, "<dd>%.1f Deg&nbsp;C, %.1f&nbsp;%% RH</dd>", temp, rh);
                 if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
@@ -122,8 +124,9 @@ static int handle_index(int s, wificfg_method method,
         }
 
         {
+            uint32_t counter;
             float temp, press, rh;
-            if (bme280_temp_press_rh(&temp, &press, &rh)) {
+            if (bme280_temp_press_rh(&counter, &temp, &press, &rh)) {
                 if (wificfg_write_string_chunk(s, "<dt>BME280</dt>", buf, len) < 0) return -1;
                 snprintf(buf, len, "<dd>%.1f Deg&nbsp;C, %.0f Pa", temp, press);
                 if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
@@ -133,8 +136,9 @@ static int handle_index(int s, wificfg_method method,
         }
 
         {
+            uint32_t counter;
             float temp, press;
-            if (bmp180_temp_press(&temp, &press)) {
+            if (bmp180_temp_press(&counter, &temp, &press)) {
                 if (wificfg_write_string_chunk(s, "<dt>BMP180</dt>", buf, len) < 0) return -1;
                 snprintf(buf, len, "<dd>%.1f Deg&nbsp;C, %.0f Pa</dd>", temp, press);
                 if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
@@ -142,6 +146,7 @@ static int handle_index(int s, wificfg_method method,
         }
 
         {
+            uint32_t counter;
             uint16_t pm1a = 0;
             uint16_t pm25a = 0;
             uint16_t pm10a = 0;
@@ -156,7 +161,7 @@ static int handle_index(int s, wificfg_method method,
             uint16_t c6 = 0;
             uint16_t r1 = 0;
 
-            if (pms_last_data(&pm1a, &pm25a, &pm10a, &pm1b, &pm25b, &pm10b, &c1, &c2, &c3, &c4, &c5, &c6, &r1)) {
+            if (pms_last_data(&counter, &pm1a, &pm25a, &pm10a, &pm1b, &pm25b, &pm10b, &c1, &c2, &c3, &c4, &c5, &c6, &r1)) {
                 if (wificfg_write_string_chunk(s, "<dt>PM1.0</dt>", buf, len) < 0) return -1;
                 snprintf(buf, len, "<dd>%u / %u</dd>", pm1a, pm1b);
                 if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
@@ -525,7 +530,7 @@ static int handle_logging_post(int s, wificfg_method method,
 
             switch (name) {
             case FORM_NAME_LOGGING: {
-                logging = strtol(buf, NULL, 10) != 0;
+                logging = strtoul(buf, NULL, 10) != 0;
                 break;
             }
             case FORM_NAME_DONE:
@@ -710,25 +715,25 @@ static int handle_config_post(int s, wificfg_method method,
 
                 switch (name) {
                 case FORM_NAME_BOARD: {
-                    int8_t board = strtol(buf, NULL, 10);
+                    int8_t board = strtoul(buf, NULL, 10);
                     if (board >= 0 && board <= 1)
                         sysparam_set_int8("oaq_board", board);
                     break;
                 }
                 case FORM_NAME_PMS_UART: {
-                    int8_t uart = strtol(buf, NULL, 10);
+                    int8_t uart = strtoul(buf, NULL, 10);
                     if (uart >= 0 && uart <= 2)
                         sysparam_set_int8("oaq_pms_uart", uart);
                     break;
                 }
                 case FORM_NAME_I2C_SCL: {
-                    int8_t i2c_scl = strtol(buf, NULL, 10);
+                    int8_t i2c_scl = strtoul(buf, NULL, 10);
                     if (i2c_scl >= 0 && i2c_scl <= 15)
                         sysparam_set_int8("oaq_i2c_scl", i2c_scl);
                     break;
                 }
                 case FORM_NAME_I2C_SDA: {
-                    int8_t i2c_sda = strtol(buf, NULL, 10);
+                    int8_t i2c_sda = strtoul(buf, NULL, 10);
                     if (i2c_sda >= 0 && i2c_sda <= 15)
                         sysparam_set_int8("oaq_i2c_sda", i2c_sda);
                     break;
@@ -740,7 +745,7 @@ static int handle_config_post(int s, wificfg_method method,
                     break;
                 }
                 case FORM_NAME_LOGGING: {
-                    logging = strtol(buf, NULL, 10) != 0;
+                    logging = strtoul(buf, NULL, 10) != 0;
                     break;
                 }
                 case FORM_NAME_WEB_SERVER: {
@@ -748,7 +753,7 @@ static int handle_config_post(int s, wificfg_method method,
                     break;
                 }
                 case FORM_NAME_WEB_PORT: {
-                    int32_t port = strtol(buf, NULL, 10);
+                    int32_t port = strtoul(buf, NULL, 10);
                     if (port >= 0 && port <= 65535)
                         sysparam_set_int32("oaq_web_port", port);
                     break;
@@ -758,7 +763,7 @@ static int handle_config_post(int s, wificfg_method method,
                     break;
                 }
                 case FORM_NAME_SENSOR_ID: {
-                    int32_t id = strtol(buf, NULL, 10);
+                    int32_t id = strtoul(buf, NULL, 10);
                     sysparam_set_int32("oaq_sensor_id", id);
                     break;
                 }
@@ -796,6 +801,9 @@ static int handle_time_post(int s, wificfg_method method,
 
     size_t rem = content_length;
     bool valp = false;
+    uint32_t utimeh = 0, utimel = 0;
+    bool utimehp = false, utimelp = false;
+    int32_t tz = 0;
 
     struct tm time;
     xSemaphoreTake(i2c_sem, portMAX_DELAY);
@@ -821,39 +829,53 @@ static int handle_time_post(int s, wificfg_method method,
 
             switch (name) {
             case FORM_NAME_YEAR: {
-                int32_t year = strtol(buf, NULL, 10);
+                int32_t year = strtoul(buf, NULL, 10);
                 if (year >= 2000 && year <= 2099)
                     time.tm_year = year - 1900;
                 break;
             }
             case FORM_NAME_MONTH: {
-                int32_t month = strtol(buf, NULL, 10);
+                int32_t month = strtoul(buf, NULL, 10);
                 if (month >= 1 && month <= 12)
                     time.tm_mon = month - 1;
                 break;
             }
             case FORM_NAME_MDAY: {
-                int32_t mday = strtol(buf, NULL, 10);
+                int32_t mday = strtoul(buf, NULL, 10);
                 if (mday >= 1 && mday <= 31)
                     time.tm_mday = mday;
                 break;
             }
             case FORM_NAME_HOUR: {
-                int32_t hour = strtol(buf, NULL, 10);
+                int32_t hour = strtoul(buf, NULL, 10);
                 if (hour >= 0 && hour <= 32)
                     time.tm_hour = hour;
                 break;
             }
             case FORM_NAME_MIN: {
-                int32_t min = strtol(buf, NULL, 10);
+                int32_t min = strtoul(buf, NULL, 10);
                 if (min >= 0 && min <= 59)
                     time.tm_min = min;
                 break;
             }
             case FORM_NAME_SEC: {
-                int32_t sec = strtol(buf, NULL, 10);
+                int32_t sec = strtoul(buf, NULL, 10);
                 if (sec >= 0 && sec <= 59)
                     time.tm_sec = sec;
+                break;
+            }
+            case FORM_NAME_UTIMEH: {
+                utimeh = strtoul(buf, NULL, 10);
+                utimehp = true;
+                break;
+            }
+            case FORM_NAME_UTIMEL: {
+                utimel = strtoul(buf, NULL, 10);
+                utimelp = true;
+                break;
+            }
+            case FORM_NAME_TZ: {
+                tz = strtol(buf, NULL, 10);
                 break;
             }
             default:
@@ -863,36 +885,125 @@ static int handle_time_post(int s, wificfg_method method,
     }
 
     if (ds3231_available) {
-        /* Apply the time zone. */
-        int8_t tz = 0;
-        sysparam_get_int8("oaq_tz", &tz);
         /* Note the original values of tm_wday and tm_yday are ignored by mktime */
         time_t clock_time = mktime(&time);
-        clock_time += tz * 60 * 60;
-        gmtime_r(&clock_time, &time);
 
-        xSemaphoreTake(i2c_sem, portMAX_DELAY);
-        ds3231_setTime(&time);
-        xSemaphoreGive(i2c_sem);
+        if (utimehp && utimelp && utimeh > 0) {
+            /* Synchronising to the client time. */
+            uint64_t utime = (uint64_t)utimeh << 32 | utimel;
+
+            /* Round off to the nearest second. */
+            utime = (utime + 500UL) / 1000UL;
+
+            /* Quick validity check. */
+            if (utime > 1502090000UL) {
+                /* If the rtc clock is behind the client clock then adopt it. This
+                 * could be repeated a few times and the post with the smallest
+                 * delay will have been used.
+                 *
+                 * If the rtc clock is ahead by more than the expected network delay
+                 * then also adopt it. This leaves a small window in which the clock
+                 * might be slightly ahead.
+                 */
+                if (clock_time < utime || clock_time > utime + 4) {
+                    clock_time = utime;
+                    gmtime_r(&clock_time, &time);
+                    xSemaphoreTake(i2c_sem, portMAX_DELAY);
+                    ds3231_setTime(&time);
+                    xSemaphoreGive(i2c_sem);
+                    if (tz >= -12 && tz <= 12) {
+                        sysparam_set_int8("oaq_tz", tz);
+                    }
+                }
+            }
+        } else {
+            /* Apply the time zone. */
+            int8_t tz = 0;
+            sysparam_get_int8("oaq_tz", &tz);
+            clock_time += tz * 60 * 60;
+            gmtime_r(&clock_time, &time);
+
+            xSemaphoreTake(i2c_sem, portMAX_DELAY);
+            ds3231_setTime(&time);
+            xSemaphoreGive(i2c_sem);
+        }
     }
 
     return wificfg_write_string(s, http_config_redirect_header);
 }
 
+static int handle_erase_data_post(int s, wificfg_method method,
+                                  uint32_t content_length,
+                                  wificfg_content_type content_type,
+                                  char *buf, size_t len)
+{
+    if (content_type != HTTP_CONTENT_TYPE_WWW_FORM_URLENCODED) {
+        return wificfg_write_string(s, "HTTP/1.1 400 \r\n"
+                                    "Content-Type: text/html\r\n"
+                                    "Content-Length: 0\r\n"
+                                    "Connection: close\r\n"
+                                    "\r\n");
+    }
 
-static const char *http_buffer_size_content[] = {
-#include "content/bufsize.html"
+    if (!erase_flash_data()) {
+        printf("Warning: error erasing data flash?\n");
+    }
+
+    wificfg_write_string(s, http_config_redirect_header);
+    return 0;
+}
+
+
+static const char *http_smoothie[] = {
+#include "content/smoothie.js"
 };
 
-static int handle_buffer_size(int s, wificfg_method method,
+static int handle_smoothie(int s, wificfg_method method,
+                           uint32_t content_length,
+                           wificfg_content_type content_type,
+                           char *buf, size_t len)
+{
+    if (wificfg_write_string(s, http_smoothie[0]) < 0) return -1;
+
+    if (method != HTTP_METHOD_HEAD) {
+        if (wificfg_write_string_chunk(s, http_smoothie[1], buf, len) < 0) return -1;
+        if (wificfg_write_chunk_end(s) < 0) return -1;
+    }
+    return 0;
+}
+
+static const char *http_plot_script[] = {
+#include "content/plot.js"
+};
+
+static int handle_plot_script(int s, wificfg_method method,
                               uint32_t content_length,
                               wificfg_content_type content_type,
                               char *buf, size_t len)
 {
+    if (wificfg_write_string(s, http_plot_script[0]) < 0) return -1;
+
+    if (method != HTTP_METHOD_HEAD) {
+        if (wificfg_write_string_chunk(s, http_plot_script[1], buf, len) < 0) return -1;
+        if (wificfg_write_chunk_end(s) < 0) return -1;
+    }
+    return 0;
+}
+
+static const char *http_plot_content[] = {
+#include "content/plot.html"
+};
+
+static int handle_plot(int s, wificfg_method method,
+                       uint32_t content_length,
+                       wificfg_content_type content_type,
+                       char *buf, size_t len)
+{
     if (wificfg_write_string(s, http_success_header) < 0) return -1;
 
     if (method != HTTP_METHOD_HEAD) {
-        if (wificfg_write_string_chunk(s, http_buffer_size_content[0], buf, len) < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_plot_content[0], buf, len) < 0) return -1;
+
         if (wificfg_write_chunk_end(s) < 0) return -1;
     }
     return 0;
@@ -902,16 +1013,17 @@ static uint64_t last_client_utime = 0;
 static uint64_t last_logged_client_utime = 0;
 static uint32_t last_client_utime_index = 0;
 
+/* The utime is a time from a web browser Date.now(), so in milli-seconds. */
 void log_client_utime(uint32_t utimeh, uint32_t utimel)
 {
     uint64_t utime = (uint64_t)utimeh << 32 | utimel;
 
     // Quick validity check.
-    if (utime < 1475142680576UL)
+    if (utime < 1502090000000UL)
         return;
 
     // Don't log more than once every 15 minutes.
-    if (utime - last_logged_client_utime > 1 * 60 * 1000) {
+    if (utime - last_logged_client_utime > 15 * 60 * 1000) {
         // Only log the client time if there was another recent ping,
         // to avoid really delayed connections.
         if (utime - last_client_utime < 2000) {
@@ -953,6 +1065,199 @@ static const char http_success_json_header[] = "HTTP/1.10 200 \r\n"
     "Connection: close\r\n"
     "\r\n";
 
+static int handle_recent_data_post(int s, wificfg_method method,
+                                   uint32_t content_length,
+                                   wificfg_content_type content_type,
+                                   char *buf, size_t len)
+{
+    if (method == HTTP_METHOD_POST) {
+        if (content_type != HTTP_CONTENT_TYPE_WWW_FORM_URLENCODED) {
+            return wificfg_write_string(s, "HTTP/1.1 400 \r\n"
+                                        "Content-Type: text/html\r\n"
+                                        "Content-Length: 0\r\n"
+                                        "Connection: close\r\n"
+                                        "\r\n");
+        }
+
+        size_t rem = content_length;
+        bool valp = false;
+        uint32_t utimeh = 0, utimel = 0;
+        bool utimehp = false, utimelp = false;
+
+        while (rem > 0) {
+            int r = wificfg_form_name_value(s, &valp, &rem, buf, len);
+
+            if (r < 0)
+                break;
+
+            wificfg_form_url_decode(buf);
+
+            form_name name = intern_form_name(buf);
+
+            if (valp) {
+                int r = wificfg_form_name_value(s, NULL, &rem, buf, len);
+                if (r < 0)
+                    break;
+
+                wificfg_form_url_decode(buf);
+
+                switch (name) {
+                case FORM_NAME_UTIMEH: {
+                    utimeh = strtoul(buf, NULL, 10);
+                    utimehp = true;
+                    break;
+                }
+                case FORM_NAME_UTIMEL: {
+                    utimel = strtoul(buf, NULL, 10);
+                    utimelp = true;
+                    break;
+                }
+                default:
+                    break;
+                }
+            }
+        }
+
+        if (utimehp && utimelp) {
+            log_client_utime(utimeh, utimel);
+        }
+    }
+
+    if (wificfg_write_string(s, http_success_json_header) < 0) return -1;
+
+    if (method != HTTP_METHOD_HEAD) {
+        uint32_t count = RTC.COUNTER;
+        snprintf(buf, len, "{\"counter\":%d", count);
+        if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
+
+        {
+            uint32_t counter;
+            struct tm time;
+            float temp;
+
+            if (ds3231_time_temp(&counter, &time, &temp)) {
+                snprintf(buf, len, ",\n \"ds3231_counter\":%u", counter);
+                if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
+                snprintf(buf, len, ", \"ds3231_temp\":%.2f", temp);
+                if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
+            }
+        }
+
+        {
+            uint32_t counter;
+            float temp, rh;
+            if (sht2x_temp_rh(&counter, &temp, &rh)) {
+                snprintf(buf, len, ",\n \"sht2x_counter\":%u", counter);
+                if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
+                snprintf(buf, len, ", \"sht2x_temp\":%.1f", temp);
+                if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
+                snprintf(buf, len, ", \"sht2x_rh\":%.1f", rh);
+                if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
+            }
+        }
+
+        {
+            uint32_t counter;
+            float temp, press;
+            if (bmp180_temp_press(&counter, &temp, &press)) {
+                snprintf(buf, len, ",\n \"bmp180_counter\":%u", counter);
+                if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
+                snprintf(buf, len, ", \"bmp180_temp\":%.1f", temp);
+                if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
+                snprintf(buf, len, ", \"bmp180_press\":%.0f", press);
+                if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
+            }
+        }
+
+        {
+            uint32_t counter;
+            float temp, press, rh;
+            if (bme280_temp_press_rh(&counter, &temp, &press, &rh)) {
+                snprintf(buf, len, ",\n \"bme280_counter\":%u", counter);
+                if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
+                snprintf(buf, len, ", \"bme280_temp\":%.1f", temp);
+                if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
+                snprintf(buf, len, ", \"bme280_press\":%.0f", press);
+                if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
+                snprintf(buf, len, ", \"bme280_rh\":%.1f", rh);
+                if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
+            }
+        }
+
+        {
+            uint32_t counter;
+            uint16_t pm1a = 0;
+            uint16_t pm25a = 0;
+            uint16_t pm10a = 0;
+            uint16_t pm1b = 0;
+            uint16_t pm25b = 0;
+            uint16_t pm10b = 0;
+            uint16_t c1 = 0;
+            uint16_t c2 = 0;
+            uint16_t c3 = 0;
+            uint16_t c4 = 0;
+            uint16_t c5 = 0;
+            uint16_t c6 = 0;
+            uint16_t r1 = 0;
+
+            if (pms_last_data(&counter, &pm1a, &pm25a, &pm10a, &pm1b, &pm25b, &pm10b, &c1, &c2, &c3, &c4, &c5, &c6, &r1)) {
+                snprintf(buf, len, ",\n \"pms_counter\":%u", counter);
+                if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
+                snprintf(buf, len, ", \"pm10a\":%u", pm1a);
+                if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
+                snprintf(buf, len, ", \"pm10b\":%u", pm1b);
+                if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
+                snprintf(buf, len, ", \"pm25a\":%u", pm25a);
+                if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
+                snprintf(buf, len, ", \"pm25b\":%u", pm25b);
+                if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
+                snprintf(buf, len, ", \"pm100a\":%u", pm10a);
+                if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
+                snprintf(buf, len, ", \"pm100b\":%u", pm10b);
+                if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
+
+                snprintf(buf, len, ", \"pc03\":%u", c1);
+                if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
+                snprintf(buf, len, ", \"pc05\":%u", c2);
+                if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
+                snprintf(buf, len, ", \"pc10\":%u", c3);
+                if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
+                snprintf(buf, len, ", \"pc25\":%u", c4);
+                if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
+                snprintf(buf, len, ", \"pc50\":%u", c5);
+                if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
+                snprintf(buf, len, ", \"pc100\":%u", c6);
+                if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
+            }
+        }
+
+        if (wificfg_write_string_chunk(s, "}\n", buf, len) < 0) return -1;
+        if (wificfg_write_chunk_end(s) < 0) return -1;
+    }
+
+    return 0;
+}
+
+
+static const char *http_buffer_size_content[] = {
+#include "content/bufsize.html"
+};
+
+static int handle_buffer_size(int s, wificfg_method method,
+                              uint32_t content_length,
+                              wificfg_content_type content_type,
+                              char *buf, size_t len)
+{
+    if (wificfg_write_string(s, http_success_header) < 0) return -1;
+
+    if (method != HTTP_METHOD_HEAD) {
+        if (wificfg_write_string_chunk(s, http_buffer_size_content[0], buf, len) < 0) return -1;
+        if (wificfg_write_chunk_end(s) < 0) return -1;
+    }
+    return 0;
+}
+
+
 static int handle_buffer_size_post(int s, wificfg_method method,
                                    uint32_t content_length,
                                    wificfg_content_type content_type,
@@ -991,15 +1296,15 @@ static int handle_buffer_size_post(int s, wificfg_method method,
 
             switch (name) {
             case FORM_NAME_UTIMEH: {
-                utimeh = strtol(buf, NULL, 10);
+                utimeh = strtoul(buf, NULL, 10);
                 break;
             }
             case FORM_NAME_UTIMEL: {
-                utimel = strtol(buf, NULL, 10);
+                utimel = strtoul(buf, NULL, 10);
                 break;
             }
             case FORM_NAME_INDEX: {
-                requested_index = strtol(buf, NULL, 10);
+                requested_index = strtoul(buf, NULL, 10);
                 break;
             }
             default:
@@ -1066,23 +1371,23 @@ static int handle_get_buffer_post(int s, wificfg_method method,
 
             switch (name) {
             case FORM_NAME_UTIMEH: {
-                utimeh = strtol(buf, NULL, 10);
+                utimeh = strtoul(buf, NULL, 10);
                 break;
             }
             case FORM_NAME_UTIMEL: {
-                utimel = strtol(buf, NULL, 10);
+                utimel = strtoul(buf, NULL, 10);
                 break;
             }
             case FORM_NAME_INDEX: {
-                requested_index = strtol(buf, NULL, 10);
+                requested_index = strtoul(buf, NULL, 10);
                 break;
             }
             case FORM_NAME_START: {
-                start = strtol(buf, NULL, 10);
+                start = strtoul(buf, NULL, 10);
                 break;
             }
             case FORM_NAME_END: {
-                end = strtol(buf, NULL, 10);
+                end = strtoul(buf, NULL, 10);
                 break;
             }
             default:
@@ -1153,27 +1458,6 @@ static int handle_get_buffer_post(int s, wificfg_method method,
     return 0;
 }
 
-static int handle_erase_data_post(int s, wificfg_method method,
-                                  uint32_t content_length,
-                                  wificfg_content_type content_type,
-                                  char *buf, size_t len)
-{
-    if (content_type != HTTP_CONTENT_TYPE_WWW_FORM_URLENCODED) {
-        return wificfg_write_string(s, "HTTP/1.1 400 \r\n"
-                                    "Content-Type: text/html\r\n"
-                                    "Content-Length: 0\r\n"
-                                    "Connection: close\r\n"
-                                    "\r\n");
-    }
-
-    if (!erase_flash_data()) {
-        printf("Warning: error erasing data flash?\n");
-    }
-
-    wificfg_write_string(s, http_config_redirect_header);
-    return 0;
-}
-
 
 static const wificfg_dispatch dispatch_list[] = {
     {"/", HTTP_METHOD_GET, handle_index, false},
@@ -1187,6 +1471,16 @@ static const wificfg_dispatch dispatch_list[] = {
     {"/time", HTTP_METHOD_POST, handle_time_post, true},
     {"/time.html", HTTP_METHOD_POST, handle_time_post, true},
     {"/erasedata.html", HTTP_METHOD_POST, handle_erase_data_post, true},
+    //
+    {"/smoothie.js", HTTP_METHOD_GET, handle_smoothie, false},
+    {"/plot.js", HTTP_METHOD_GET, handle_plot_script, false},
+    {"/plot", HTTP_METHOD_GET, handle_plot, false},
+    {"/plot.html", HTTP_METHOD_GET, handle_plot, false},
+    {"/recentdata", HTTP_METHOD_POST, handle_recent_data_post, false},
+    {"/recentdata.html", HTTP_METHOD_POST, handle_recent_data_post, false},
+    {"/recentdata", HTTP_METHOD_GET, handle_recent_data_post, false},
+    {"/recentdata.html", HTTP_METHOD_GET, handle_recent_data_post, false},
+    //
     {"/bufsize", HTTP_METHOD_GET, handle_buffer_size, false},
     {"/bufsize.html", HTTP_METHOD_GET, handle_buffer_size, false},
     {"/bufsize", HTTP_METHOD_POST, handle_buffer_size_post, false},

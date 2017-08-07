@@ -19,4 +19,4 @@
 
 void init_sht2x();
 
-bool sht2x_temp_rh(float *temp, float *rh);
+bool sht2x_temp_rh(uint32_t *counter, float *temp, float *rh);

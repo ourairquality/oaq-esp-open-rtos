@@ -49,6 +49,9 @@
 void ds3231_note_time(time_t recv_time)
 {
     struct tm tm;
+
+    xSemaphoreTake(i2c_sem, portMAX_DELAY);
+
     bool ds3231_available = ds3231_getTime(&tm);
     if (ds3231_available) {
         time_t clock_time = mktime(&tm);
@@ -86,25 +89,29 @@ void ds3231_note_time(time_t recv_time)
                     if (new_index == last_index)
                         break;
 
-                    /* Moved on to a new buffe, retry. */
+                    /* Moved on to a new buffer, retry. */
                     last_index = new_index;
                 };
             }
         }
     }
+
+    xSemaphoreGive(i2c_sem);
 }
 
 bool ds3231_available = false;
+int32_t ds3231_counter = 0;
 struct tm ds3231_time;
 int16_t ds3231_temperature = 0;
 
-bool ds3231_time_temp(struct tm *time, float *temp)
+bool ds3231_time_temp(uint32_t *counter, struct tm *time, float *temp)
 {
     if (!ds3231_available)
         return false;
 
     xSemaphoreTake(i2c_sem, portMAX_DELAY);
-    *time = ds3231_time;;
+    *counter = ds3231_counter;
+    *time = ds3231_time;
     *temp = (float)ds3231_temperature * 0.25;
     xSemaphoreGive(i2c_sem);
 
@@ -150,6 +157,7 @@ static void ds3231_read_task(void *pvParameters)
         }
 
         ds3231_available = true;
+        ds3231_counter = RTC.COUNTER;
         ds3231_time = time;
         ds3231_temperature = temperature;
 

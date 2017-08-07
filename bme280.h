@@ -21,4 +21,4 @@
 
 void init_bme280();
 
-bool bme280_temp_press_rh(float *temp, float *press, float *rh);
+bool bme280_temp_press_rh(uint32_t *counter, float *temp, float *press, float *rh);

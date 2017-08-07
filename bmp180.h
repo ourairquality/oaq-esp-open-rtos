@@ -21,4 +21,4 @@
 
 void init_bmp180();
 
-bool bmp180_temp_press(float *temp, float *press);
+bool bmp180_temp_press(uint32_t *counter, float *temp, float *press);

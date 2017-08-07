@@ -21,4 +21,4 @@
 
 void init_pms();
 
-bool pms_last_data(uint16_t *pm1a, uint16_t *pm25a, uint16_t *pm10a, uint16_t *pm1b, uint16_t *pm25b, uint16_t *pm10b, uint16_t *c1, uint16_t *c2, uint16_t *c3, uint16_t *c4, uint16_t *c5, uint16_t *c6, uint16_t *r1);
+bool pms_last_data(uint32_t *counter, uint16_t *pm1a, uint16_t *pm25a, uint16_t *pm10a, uint16_t *pm1b, uint16_t *pm25b, uint16_t *pm10b, uint16_t *c1, uint16_t *c2, uint16_t *c3, uint16_t *c4, uint16_t *c5, uint16_t *c6, uint16_t *r1);

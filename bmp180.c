@@ -42,15 +42,17 @@
 
 
 static bool bmp180_available = false;
+static uint32_t bmp180_counter = 0;
 static int32_t bmp180_temperature = 0;
 static uint32_t bmp180_pressure = 0;
 
-bool bmp180_temp_press(float *temp, float *press)
+bool bmp180_temp_press(uint32_t *counter, float *temp, float *press)
 {
     if (!bmp180_available)
         return false;
 
     xSemaphoreTake(i2c_sem, portMAX_DELAY);
+    *counter = bmp180_counter;
     *temp = (float)bmp180_temperature/10.0;
     *press = (float)bmp180_pressure;
     xSemaphoreGive(i2c_sem);
@@ -88,6 +90,7 @@ static void bmp180_read_task(void *pvParameters)
         }
             
         bmp180_available = true;
+        bmp180_counter = RTC.COUNTER;
         bmp180_temperature = temperature;
         bmp180_pressure = pressure;
 

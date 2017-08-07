@@ -123,6 +123,7 @@ static void emit_var_int(int32_t v)
 }
 
 static bool pms_available = false;
+static uint32_t pms_counter = 0;
 static uint16_t pms_pm1a = 0;
 static uint16_t pms_pm25a = 0;
 static uint16_t pms_pm10a = 0;
@@ -137,8 +138,9 @@ static uint16_t pms_c5 = 0;
 static uint16_t pms_c6 = 0;
 static uint16_t pms_r1 = 0;
 
-bool pms_last_data(uint16_t *pm1a, uint16_t *pm25a, uint16_t *pm10a, uint16_t *pm1b, uint16_t *pm25b, uint16_t *pm10b, uint16_t *c1, uint16_t *c2, uint16_t *c3, uint16_t *c4, uint16_t *c5, uint16_t *c6, uint16_t *r1)
+bool pms_last_data(uint32_t *counter, uint16_t *pm1a, uint16_t *pm25a, uint16_t *pm10a, uint16_t *pm1b, uint16_t *pm25b, uint16_t *pm10b, uint16_t *c1, uint16_t *c2, uint16_t *c3, uint16_t *c4, uint16_t *c5, uint16_t *c6, uint16_t *r1)
 {
+    *counter = pms_counter;
     *pm1a = pms_pm1a;
     *pm25a = pms_pm25a;
     *pm10a = pms_pm10a;
@@ -298,6 +300,7 @@ static void pms_read_task(void *pvParameters)
         }
 
         pms_available = true;
+        pms_counter = RTC.COUNTER;
         pms_pm1a = pm1a;
         pms_pm25a = pm25a;
         pms_pm10a = pm10a;

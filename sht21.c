@@ -225,16 +225,18 @@ static uint8_t sht2x_measure_poll(int temp_rh, uint8_t data[], uint8_t *crc)
 
 
 static bool sht2x_available = false;
+static uint32_t sht2x_counter = 0;
 static uint8_t sht2x_serial_number[8];
 static uint16_t sht2x_temperature = 0;
 static uint16_t sht2x_rh = 0;
 
-bool sht2x_temp_rh(float *temp, float *rh)
+bool sht2x_temp_rh(uint32_t *counter, float *temp, float *rh)
 {
     if (!sht2x_available)
         return false;
 
     xSemaphoreTake(i2c_sem, portMAX_DELAY);
+    *counter = sht2x_counter;
     *temp = -46.85 + (175.72/16384.0) * (float)sht2x_temperature;
     *rh = -6.0 + (125.0/16384.0) * (float)sht2x_rh;
     xSemaphoreGive(i2c_sem);
@@ -300,6 +302,7 @@ static void sht2x_read_task(void *pvParameters)
         rh >>= 2; /* Strip the two low status bits */
 
         sht2x_available = true;
+        sht2x_counter = RTC.COUNTER;
         sht2x_temperature = temp;
         sht2x_rh = rh;
 
