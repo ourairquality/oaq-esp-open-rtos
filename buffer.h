@@ -19,6 +19,7 @@
  *
  */
 
+bool get_buffer_logging(void);
 bool set_buffer_logging(bool enable);
 uint32_t get_buffer_to_write(uint8_t *buf, uint32_t *start);
 void note_buffer_written(uint32_t index, uint32_t size);

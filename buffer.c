@@ -141,6 +141,10 @@ static void initialize_dbuf(uint32_t num)
     memset(dbuf->data, 0xff, DBUF_DATA_SIZE);
 }
 
+bool get_buffer_logging() {
+    return dbuf_logging_enabled;
+}
+
 bool set_buffer_logging(bool enable) {
     bool old_value = dbuf_logging_enabled;
     dbuf_logging_enabled = enable;

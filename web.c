@@ -76,12 +76,11 @@ static int handle_index(int s, wificfg_method method,
 
         if (wificfg_write_string_chunk(s, "<dl class=\"dlh\">", buf, len) < 0) return -1;
 
-        int8_t logging = 0;
-        sysparam_get_int8("oaq_logging", &logging);
+        int8_t logging = get_buffer_logging();
         if (logging) {
-            if (wificfg_write_string_chunk(s, "<dt>Logging is enabled</dt><dd><form action=\"/logging.html\" method=\"post\"\"><button name=\"oaq_logging\" type=\"submit\" value=\"0\">Disable logging</button><input type=\"hidden\" name=\"done\"></form></dd>", buf, len) < 0) return -1;
+            if (wificfg_write_string_chunk(s, "<dt>Logging is enabled</dt><dd><form action=\"/logging.html\" method=\"post\"\"><button name=\"oaq_logging\" type=\"submit\" value=\"0\">Pause logging</button><input type=\"hidden\" name=\"done\"></form></dd>", buf, len) < 0) return -1;
         } else {
-            if (wificfg_write_string_chunk(s, "<dt>Logging is disable</dt><dd><form action=\"/logging.html\" method=\"post\"\"><button name=\"oaq_logging\" type=\"submit\" value=\"1\">Enable logging</button><input type=\"hidden\" name=\"done\"></form></dd>", buf, len) < 0) return -1;
+            if (wificfg_write_string_chunk(s, "<dt>Logging is paused</dt><dd><form action=\"/logging.html\" method=\"post\"\"><button name=\"oaq_logging\" type=\"submit\" value=\"1\">Restart logging</button><input type=\"hidden\" name=\"done\"></form></dd>", buf, len) < 0) return -1;
         }
 
         uint32_t index;
@@ -543,7 +542,6 @@ static int handle_logging_post(int s, wificfg_method method,
     }
 
     if (done) {
-        sysparam_set_int8("oaq_logging", logging);
         set_buffer_logging(logging);
     }
 
