@@ -26,16 +26,21 @@
 
 void init_blink()
 {
-    switch (param_board) {
+    switch (param_leds) {
       case 0:
+          // LEDs not used.
+          break;
+      case 1:
           // Nodemcu
           gpio_enable(16, GPIO_OUTPUT);
+          gpio_enable(2, GPIO_OUTPUT);
           gpio_write(16, 1);
+          gpio_write(2, 1);
           break;
 
-      case 1:
+      case 2:
           /*
-           * Witty param_board setup.
+           * Witty param_leds setup.
            * Multi-color LED is on pins 12 13 and 15.
            */
 
@@ -54,17 +59,17 @@ void init_blink()
 
 void blink_green()
 {
-    switch (param_board) {
-      case 0:
+    switch (param_leds) {
+      case 1:
           // Nodemcu
           gpio_write(16, 0);
-          taskYIELD();
+          vTaskDelay(20 / portTICK_PERIOD_MS);
           gpio_write(16, 1);
           break;
-      case 1 :
+      case 2:
           // Witty Green
           gpio_write(12, 1);
-          taskYIELD();
+          vTaskDelay(20 / portTICK_PERIOD_MS);
           gpio_write(12, 0);
           break;
     }
@@ -72,17 +77,17 @@ void blink_green()
 
 void blink_blue()
 {
-    switch (param_board) {
-      case 0:
-          // Nodemcu
-          gpio_write(16, 0);
-          taskYIELD();
-          gpio_write(16, 1);
-          break;
+    switch (param_leds) {
       case 1:
+          // Nodemcu
+          gpio_write(2, 0);
+          vTaskDelay(20 / portTICK_PERIOD_MS);
+          gpio_write(2, 1);
+          break;
+      case 2:
           // Witty Blue
           gpio_write(13, 1);
-          taskYIELD();
+          vTaskDelay(20 / portTICK_PERIOD_MS);
           gpio_write(13, 0);
           break;
     }
@@ -90,18 +95,18 @@ void blink_blue()
 
 void blink_red()
 {
-    switch (param_board) {
-      case 0:
+    switch (param_leds) {
+      case 1:
           // Nodemcu
           gpio_write(16, 0);
-          taskYIELD();
+          vTaskDelay(50 / portTICK_PERIOD_MS);
           gpio_write(16, 1);
           break;
 
-      case 1:
+      case 2:
           // Witty Red
           gpio_write(15, 1);
-          taskYIELD();
+          vTaskDelay(50 / portTICK_PERIOD_MS);
           gpio_write(15, 0);
           break;
     }
@@ -109,20 +114,22 @@ void blink_red()
 
 void blink_white()
 {
-    switch (param_board) {
-      case 0:
+    switch (param_leds) {
+      case 1:
           // Nodemcu.
           gpio_write(16, 0);
-          taskYIELD();
+          gpio_write(2, 0);
+          vTaskDelay(20 / portTICK_PERIOD_MS);
           gpio_write(16, 1);
+          gpio_write(2, 1);
           break;
 
-      case 1:
+      case 2:
           // Witty Green, Blue, Red
           gpio_write(12, 1);
           gpio_write(13, 1);
           gpio_write(15, 1);
-          taskYIELD();
+          vTaskDelay(20 / portTICK_PERIOD_MS);
           gpio_write(12, 0);
           gpio_write(13, 0);
           gpio_write(15, 0);

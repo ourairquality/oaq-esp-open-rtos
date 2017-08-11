@@ -73,7 +73,7 @@ void ds3231_note_time(time_t recv_time)
                 /*
                  * Log all steps in the clock time.
                  */
-                uint32_t last_index = dbuf_head_index();
+                uint32_t last_segment = dbuf_head_index();
                 while (1) {
                     uint8_t outbuf[8];
                     outbuf[0] = clock_time;
@@ -85,12 +85,12 @@ void ds3231_note_time(time_t recv_time)
                     outbuf[6] = recv_time >> 16;
                     outbuf[7] = recv_time >> 24;
                     int32_t code = DBUF_EVENT_DS3231_TIME_STEP;
-                    uint32_t new_index = dbuf_append(last_index, code, outbuf, sizeof(outbuf), 1, 0);
-                    if (new_index == last_index)
+                    uint32_t new_segment = dbuf_append(last_segment, code, outbuf, sizeof(outbuf), 1);
+                    if (new_segment == last_segment)
                         break;
 
                     /* Moved on to a new buffer, retry. */
-                    last_index = new_index;
+                    last_segment = new_segment;
                 };
             }
         }
@@ -121,7 +121,7 @@ bool ds3231_time_temp(uint32_t *counter, struct tm *time, float *temp)
 static void ds3231_read_task(void *pvParameters)
 {
     /* Delta encoding state. */
-    uint32_t last_index = 0;
+    uint32_t last_segment = 0;
     time_t last_clock_time = 0;
     int16_t last_temperature = 0;
 
@@ -171,13 +171,13 @@ static void ds3231_read_task(void *pvParameters)
             int32_t temp_delta = (int32_t)temperature - (int32_t)last_temperature;
             len = emit_leb128_signed(outbuf, len, temp_delta);
             int32_t code = DBUF_EVENT_DS3231_TIME_TEMP;
-            uint32_t new_index = dbuf_append(last_index, code, outbuf, len, 1, 0);
-            if (new_index == last_index)
+            uint32_t new_segment = dbuf_append(last_segment, code, outbuf, len, 1);
+            if (new_segment == last_segment)
                 break;
 
             /* Moved on to a new buffer. Reset the delta encoding
              * state and retry. */
-            last_index = new_index;
+            last_segment = new_segment;
             last_clock_time = 0;
             last_temperature = 0;
         };

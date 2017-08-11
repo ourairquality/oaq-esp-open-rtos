@@ -58,7 +58,7 @@
 #include "leds.h"
 #include "flash.h"
 #include "web.h"
-#include "post.h"
+#include "push.h"
 #include "pms.h"
 #include "i2c.h"
 #include "sht21.h"
@@ -107,7 +107,7 @@ static SemaphoreHandle_t dbufs_sem;
  * Logging to the data buffers can be disabled by clearing this variable, and
  * this is the start of the data flow so it stops more data entering.
  */
-static bool dbuf_logging_enabled = true;
+static bool dbuf_logging_enabled = false;
 
 /* Return the index for the buffer number. */
 static uint32_t dbuf_index(uint32_t num)
@@ -146,8 +146,45 @@ bool get_buffer_logging() {
 }
 
 bool set_buffer_logging(bool enable) {
+    /* If logging is being paused then note this event before pausing. It is
+     * possible that a few other log entries are added after this. */
+    if (dbuf_logging_enabled && !enable) {
+        uint32_t last_segment = 0;
+        while (1) {
+            uint32_t new_segment = dbuf_append(last_segment, DBUF_EVENT_PAUSE_LOGGING,
+                                               NULL, 0, 1);
+            if (new_segment == last_segment)
+                break;
+            last_segment = new_segment;
+        }
+    }
+
+    xSemaphoreTake(dbufs_sem, portMAX_DELAY);
     bool old_value = dbuf_logging_enabled;
     dbuf_logging_enabled = enable;
+    xSemaphoreGive(dbufs_sem);
+
+    /* If logging has just been enabled then log this event along with an RTC
+     * calibration. Otherwise, if the device started up with logging disabled
+     * then there would be no startup event to give an RTC calibration. */
+    if (!old_value && enable) {
+        uint32_t restart[1];
+        /* Include a RTC calibration, and average a few calls as it seems rather
+         * noisy. */
+        restart[0] = 0;
+        for (int i = 0; i < 32; i++)
+            restart[0] += sdk_system_rtc_clock_cali_proc();
+        restart[0] >>= 5;
+        uint32_t last_segment = 0;
+        while (1) {
+            uint32_t new_segment = dbuf_append(last_segment, DBUF_EVENT_START_LOGGING,
+                                               (void *)restart, sizeof(restart), 1);
+            if (new_segment == last_segment)
+                break;
+            last_segment = new_segment;
+        }
+    }
+
     return old_value;
 }
 
@@ -195,29 +232,41 @@ uint32_t emit_leb128_signed(uint8_t *buf, uint32_t start, int64_t v)
  * only truncated when it does not cause a backward step in time since the last
  * time-stamp.
  *
- * If the no_repeat flag is set and the code and size are the same as the
- * immediately prior event in the same buffer then no event is logged. This is
- * used to log the times in responses from a server, to prevent an ongoing log
- * to the server of only the server responses.
+ * If the caller wishes to avoid redundantly repeated entries then it should
+ * implement that logic itself. That is not possible here in general as
+ * dropping entries would invalidate the callers delta encoding.
+ *
+ * If entries are dropped due to logging being disabled then that will break the
+ * callers delta encoding, so a segment restart is flagged in that case.
  *
  * The append operation might fail if there is not room, and the caller is
  * expected to retry. Each buffer stands alone, so delta encoding needs to be
  * reset for each new buffer, and if the delta encoding changes then the encoded
  * data size might change too so the caller needs to re-encode the event
- * data. The called needs to know when the buffer has changed to reset the state
- * and to do this the index is passed in an if not the current index then the
- * append abort, the current index is returned.
+ * data. The caller needs to know when the buffer has changed to reset the state
+ * and to do this the segment index is passed in an if not the current segment
+ * index then the append aborts and the current segment index is returned.
  */
+static uint32_t current_segment;
+static bool dbuf_stream_restart_required;
 static int32_t last_code;
 static int32_t last_size;
 static uint32_t last_time;
 
-uint32_t dbuf_append(uint32_t index, uint16_t code, uint8_t *data, uint32_t size,
-                     int low_res_time, int no_repeat)
+uint32_t dbuf_append(uint32_t segment, uint16_t code, uint8_t *data, uint32_t size,
+                     int low_res_time)
 {
     xSemaphoreTake(dbufs_sem, portMAX_DELAY);
 
     if (!dbuf_logging_enabled) {
+        /* An entry is being dropped, and might have been delta encoded, so note
+         * that a segment restart is needed. The segment index will be advanced
+         * but there is no need to advance it here now, and the callers can keep
+         * using the current segment index - the output is just being
+         * discarded. When the stream restarts the segment index will change and
+         * callers will then need to reset their delta encoding state. */
+        dbuf_stream_restart_required = true;
+
         xSemaphoreGive(dbufs_sem);
 
         /*
@@ -228,15 +277,40 @@ uint32_t dbuf_append(uint32_t index, uint16_t code, uint8_t *data, uint32_t size
             xTaskNotify(flash_data_task, 0, eNoAction);
 
         /* Consume it to allow the caller to proceed. */
-        return index;
+        return segment;
     }
 
-    uint32_t current_index = dbuf_index(dbufs_head);
-    if (index != current_index) {
-        /* Moved on to the next buffer. The caller must reset any delta encoding
-         * state and retry. */
+    /* A stream restart is required. */
+    if (dbuf_stream_restart_required) {
+        /* Reset the prior-event state. */
+        last_code = 0;
+        last_size = 0;
+        last_time = 0;
+        /* Advance the segment index. */
+        current_segment++;
+        /* An entry needs to be added to the stream log now, so hijack this call
+         * and the caller will retry as the segment index has advanced. If there
+         * is no room for this entry then it will advance to the next buffer
+         * which resets the state anyway. The segment restart flag can be
+         * cleared now as all exits either log a restart event or roll over to a
+         * new buffer. */
+        dbuf_stream_restart_required = false;
+        if (segment == current_segment) {
+            printf("Error: unexpected segment index\n");
+        }
+        segment = current_segment;
+        code = DBUF_EVENT_SEGMENT_START;
+        data = NULL;
+        size = 0;
+        low_res_time = 1;
+    }
+
+    if (segment != current_segment) {
+        /* The stream has been interrupted, so the caller must reset any delta
+         * encoding state and retry. */
+        segment = current_segment;
         xSemaphoreGive(dbufs_sem);
-        return current_index;
+        return segment;
     }
 
     uint32_t time = RTC.COUNTER;
@@ -279,11 +353,6 @@ uint32_t dbuf_append(uint32_t index, uint16_t code, uint8_t *data, uint32_t size
      */
 
     if (code == last_code && size == last_size) {
-        if (no_repeat) {
-            xSemaphoreGive(dbufs_sem);
-            return index;
-        }
-        
         if ((time_delta & 0x00001fff) == 0) {
             uint64_t v = time_delta >> (13 - 2) | 2 | 0;
             header_size = emit_leb128(header, header_size, v);
@@ -307,16 +376,21 @@ uint32_t dbuf_append(uint32_t index, uint16_t code, uint8_t *data, uint32_t size
 
     uint32_t total_size = header_size + size;
 
-    /* Check if there is room in the current buffer. */
-    dbuf_t *head = &dbufs[dbufs_head];
+    /* Guard against logging data too big to fit in any buffer. */
     if (total_size > DBUF_DATA_SIZE - 8) {
         xSemaphoreGive(dbufs_sem);
-        /* Consume it to clear the error. */
-        return index;
+        /* Consume it to clear the error. This will break delta encoding for the
+         * caller, but this is an exceptional path that should not occur in
+         * normal operation. */
+        printf("Error: data too large to buffer?\n");
+        return segment;
     }
+
+    /* Check if there is room in the current buffer. */
+    dbuf_t *head = &dbufs[dbufs_head];
     if (head->size + total_size > DBUF_DATA_SIZE) {
         /* Full, move to the next buffer. */
-        index++;
+        uint32_t index = dbuf_index(dbufs_head) + 1;
         /* Reuse the head buffer if it is the only active buffer and its data
          * has been saved. This check prevents a saved buffer being retained
          * which would break an assumed invariant. */
@@ -340,9 +414,14 @@ uint32_t dbuf_append(uint32_t index, uint16_t code, uint8_t *data, uint32_t size
         last_code = 0;
         last_size = 0;
         last_time = 0;
+        /* Advance the segment index. The caller, and other callers using the
+         * old segment, must reset any delta encoding state and retry. */
+        segment = current_segment + 1;
+        current_segment = segment;
+        /* Clear the segment restart flag, as it is no longer necessary. */
+        dbuf_stream_restart_required = false;
         xSemaphoreGive(dbufs_sem);
-        /* Caller must reset any delta encoding state and retry. */
-        return index;
+        return segment;
     }
 
     /* Reset the write time if this is the first real write to the buffer, or
@@ -371,7 +450,7 @@ uint32_t dbuf_append(uint32_t index, uint16_t code, uint8_t *data, uint32_t size
     if (flash_data_task)
         xTaskNotify(flash_data_task, 0, eNoAction);
 
-    return index;
+    return segment;
 }
     
 /*
@@ -494,10 +573,13 @@ void note_buffer_written(uint32_t index, uint32_t size)
 }
 
 /*
- * Reset the buffers, discarding any data in them. The index is reset to zero.
+ * Reset the buffers, discarding any data in them. The current segment index is
+ * is not reset here but dbuf_stream_restart_required is set.
  */
 void reset_dbuf()
 {
+    xSemaphoreTake(dbufs_sem, portMAX_DELAY);
+
     dbufs_head = 0;
     dbufs_tail = 0;
     initialize_dbuf(dbufs_head);
@@ -507,6 +589,9 @@ void reset_dbuf()
     last_code = 0;
     last_size = 0;
     last_time = 0;
+    dbuf_stream_restart_required = true;
+
+    xSemaphoreGive(dbufs_sem);
 }
 
 
@@ -524,18 +609,21 @@ void user_init(void)
     set_dbuf_index(dbufs_head, last_index);
     dbufs[dbufs_head].size = 8;
 
+    current_segment = 0;
     last_code = 0;
     last_size = 0;
     last_time = 0;
 
     dbufs_sem = xSemaphoreCreateMutex();
 
-    set_buffer_logging(param_logging);
+    /* Set the flag directly to avoid logging an event. */
+    dbuf_logging_enabled = param_logging;
 
     init_blink();
     blink_red();
     blink_blue();
     blink_green();
+    blink_white();
 
     /* Log a startup event. */
     uint32_t startup[8 + 1];
@@ -548,12 +636,13 @@ void user_init(void)
     for (int i = 0; i < 32; i++)
         startup[8] += sdk_system_rtc_clock_cali_proc();
     startup[8] >>= 5;
+    uint32_t last_segment = current_segment;
     while (1) {
-        uint32_t new_index = dbuf_append(last_index, DBUF_EVENT_ESP8266_STARTUP,
-                                         (void *)startup, sizeof(startup), 1, 0);
-        if (new_index == last_index)
+        uint32_t new_segment = dbuf_append(last_segment, DBUF_EVENT_ESP8266_STARTUP,
+                                           (void *)startup, sizeof(startup), 1);
+        if (new_segment == last_segment)
             break;
-        last_index = new_index;
+        last_segment = new_segment;
     }
 
     /* Start logging to the RAM buffer immediately. */

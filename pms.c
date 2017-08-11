@@ -166,7 +166,7 @@ bool pms_last_data(uint32_t *counter, uint16_t *pm1a, uint16_t *pm25a, uint16_t 
 static void pms_read_task(void *pvParameters)
 {
     /* Delta encoding state. */
-    uint32_t last_index = 0;
+    uint32_t last_segment = 0;
     int32_t last_pm1a = 0;
     int32_t last_pm25ad = 0;
     int32_t last_pm10ad = 0;
@@ -341,13 +341,13 @@ static void pms_read_task(void *pvParameters)
 
             int len = outlen;
             int32_t code = length == 0x14 ? DBUF_EVENT_PMS3003 : DBUF_EVENT_PMS5003;
-            uint32_t new_index = dbuf_append(last_index, code, outbuf, len, 1, 0);
-            if (new_index == last_index)
+            uint32_t new_segment = dbuf_append(last_segment, code, outbuf, len, 1);
+            if (new_segment == last_segment)
                 break;
 
             /* Moved on to a new buffer. Reset the delta encoding state and
              * retry. */
-            last_index = new_index;
+            last_segment = new_segment;
             last_pm1a = 0;
             last_pm25ad = 0;
             last_pm10ad = 0;
@@ -392,6 +392,6 @@ void init_pms()
             sdk_system_uart_swap();
         }
         uart_set_baud(0, 9600);
-        xTaskCreate(&pms_read_task, "PMS reader", 288, NULL, 3, NULL);
+        xTaskCreate(&pms_read_task, "PMS reader", 272, NULL, 3, NULL);
     }
 }

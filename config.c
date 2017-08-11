@@ -31,7 +31,7 @@
 /*
  * Parameters.
  */
-uint8_t param_board;
+uint8_t param_leds;
 uint8_t param_pms_uart;
 uint8_t param_i2c_scl;
 uint8_t param_i2c_sda;
@@ -47,10 +47,10 @@ void init_params()
 {
     sysparam_status_t status;
 
-    param_board = 0;
+    param_leds = 1;
     param_pms_uart = 2;
-    param_i2c_scl = 0;
-    param_i2c_sda = 2;
+    param_i2c_scl = 5;
+    param_i2c_sda = 4;
     param_logging = 0;
     param_web_server = NULL;
     bzero(param_web_port, sizeof(param_web_port));
@@ -59,7 +59,7 @@ void init_params()
     param_key_size = 0;
     param_sha3_key = NULL;
 
-    sysparam_get_int8("oaq_board", (int8_t *)&param_board);
+    sysparam_get_int8("oaq_leds", (int8_t *)&param_leds);
     sysparam_get_int8("oaq_pms_uart", (int8_t *)&param_pms_uart);
     sysparam_get_int8("oaq_i2c_scl", (int8_t *)&param_i2c_scl);
     sysparam_get_int8("oaq_i2c_sda", (int8_t *)&param_i2c_sda);

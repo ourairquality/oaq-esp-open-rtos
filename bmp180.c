@@ -63,7 +63,7 @@ bool bmp180_temp_press(uint32_t *counter, float *temp, float *press)
 static void bmp180_read_task(void *pvParameters)
 {
     /* Delta encoding state. */
-    uint32_t last_index = 0;
+    uint32_t last_segment = 0;
     uint32_t last_bmp180_temp = 0;
     uint32_t last_bmp180_pressure = 0;
 
@@ -104,13 +104,13 @@ static void bmp180_read_task(void *pvParameters)
             int32_t pressure_delta = (int32_t)pressure - (int32_t)last_bmp180_pressure;
             len = emit_leb128_signed(outbuf, len, pressure_delta);
             int32_t code = DBUF_EVENT_BMP180_TEMP_PRESSURE;
-            uint32_t new_index = dbuf_append(last_index, code, outbuf, len, 1, 0);
-            if (new_index == last_index)
+            uint32_t new_segment = dbuf_append(last_segment, code, outbuf, len, 1);
+            if (new_segment == last_segment)
                 break;
 
             /* Moved on to a new buffer. Reset the delta encoding
              * state and retry. */
-            last_index = new_index;
+            last_segment = new_segment;
             last_bmp180_temp = 0;
             last_bmp180_pressure = 0;
         };
@@ -131,5 +131,5 @@ static void bmp180_read_task(void *pvParameters)
 
 void init_bmp180()
 {
-    xTaskCreate(&bmp180_read_task, "bmp180_read_task", 256, NULL, 2, NULL);
+    xTaskCreate(&bmp180_read_task, "bmp180_read_task", 240, NULL, 2, NULL);
 }

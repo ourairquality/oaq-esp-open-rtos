@@ -247,7 +247,7 @@ bool sht2x_temp_rh(uint32_t *counter, float *temp, float *rh)
 static void sht2x_read_task(void *pvParameters)
 {
     /* Delta encoding state. */
-    uint32_t last_index = 0;
+    uint32_t last_segment = 0;
     uint16_t last_temp = 0;
     uint16_t last_rh = 0;
 
@@ -318,13 +318,13 @@ static void sht2x_read_task(void *pvParameters)
             /* Include the xor of both crcs */
             outbuf[len++] = temp_crc ^ rh_crc;
             int32_t code = DBUF_EVENT_SHT2X_TEMP_HUM;
-            uint32_t new_index = dbuf_append(last_index, code, outbuf, len, 1, 0);
-            if (new_index == last_index)
+            uint32_t new_segment = dbuf_append(last_segment, code, outbuf, len, 1);
+            if (new_segment == last_segment)
                 break;
 
             /* Moved on to a new buffer. Reset the delta encoding
              * state and retry. */
-            last_index = new_index;
+            last_segment = new_segment;
             last_temp = 0;
             last_rh = 0;
         };
@@ -346,5 +346,5 @@ static void sht2x_read_task(void *pvParameters)
 
 void init_sht2x()
 {
-    xTaskCreate(&sht2x_read_task, "sht2x_read_task", 224, NULL, 2, NULL);
+    xTaskCreate(&sht2x_read_task, "sht2x_read_task", 208, NULL, 2, NULL);
 }

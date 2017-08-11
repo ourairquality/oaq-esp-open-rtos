@@ -23,10 +23,10 @@
 /*
  * Parameters.
  *
- * The 'board' can be 0 for Nodemcu, and 1 for Witty. It is only used to blink
- * some LEDs at present.
+ * The 'leds' can be 0 to disable use of LEDS, 1 for Nodemcu, and 2 for
+ * Witty.
  */
-extern uint8_t param_board;
+extern uint8_t param_leds;
 
 /*
  * The PMS*003 serial port:
@@ -40,8 +40,8 @@ extern uint8_t param_pms_uart;
 /*
  * I2C bus pin definitions, GPIO numbers.
  *
- * SCL defaults to GPIO 0 (Nodemcu pin D3) and SDA to GPIO 2 (Nodemcu
- * pin D4) if not supplied.
+ * SCL defaults to GPIO 5 (Nodemcu pin D1) and SDA to GPIO 4 (Nodemcu
+ * pin D2) if not supplied.
  */
 extern uint8_t param_i2c_scl;
 extern uint8_t param_i2c_sda;

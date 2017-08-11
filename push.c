@@ -39,6 +39,7 @@
 #include "flash.h"
 #include "sha3.h"
 #include "ds3231.h"
+#include "leds.h"
 
 #include "config.h"
 
@@ -57,15 +58,25 @@ TaskHandle_t post_data_task = NULL;
 
 #define SIGNATURE_SIZE 28
 
-#define PREFIX_SIZE 288 /* At least key_size */
-#define POST_BUFFER_SIZE (PREFIX_SIZE + 4 + 4 + 4 + 4 + 4096 + SIGNATURE_SIZE)
-static uint8_t post_buf[POST_BUFFER_SIZE];
+ /* At least the key_size of 287 bytes, round up gives an alignment 32. */
+#define PREFIX_SIZE 288
+
+/*
+ * Sectors are posted in chunks, to limit buffer size here. FIPS202
+ * SHA3_224 naturally works in block sizes of 144 bytes, so choose two
+ * of these blocks gives a size of 288 bytes.
+ */
+#define CHUNK_SIZE 288
+
+/* Total size here is 620 bytes. */
+#define POST_BUFFER_SIZE (PREFIX_SIZE + 4 + 4 + 4 + 4 + CHUNK_SIZE + SIGNATURE_SIZE)
+static uint8_t *post_buf;
 
 #define MAX_HOLD_OFF_TIME 1800000 /* 30 minutes */
 
 static void post_data(void *pvParameters)
 {
-    uint32_t last_index = 0;
+    uint32_t last_segment = 0;
     uint32_t last_recv_sec = 0;
 
     /*
@@ -75,12 +86,23 @@ static void post_data(void *pvParameters)
      */
     uint32_t hold_off_time = 0;
 
+    /*
+     * Can not flag every index that has been sent and how much, so do a scan
+     * and keep the head state: the index currently being pushed or last pushed,
+     * the total size of that index, and the amount that has been push, and flag
+     * if it was know to have been sealed and not open to being extended.
+     */
+    uint32_t index_being_pushed = 0;
+    uint32_t index_size_being_pushed = 0;
+    uint32_t index_size_pushed = 0;
+    bool index_being_pushed_sealed = false;
+    bool index_being_pushed_headp = false;
+
     while (1) {
         xTaskNotifyWait(0, 0, NULL, 120000 / portTICK_PERIOD_MS);
 
         /* Try to flush all the pending buffers before waiting again. */
         while (1) {
-            uint32_t start, index;
             int j;
 
             /* Lightweight check if there is anything to post. */
@@ -130,7 +152,7 @@ static void post_data(void *pvParameters)
 
             /* Route via the station interface, which is always en0. */
             const struct ifreq ifreq = { "en0" };
-            lwip_setsockopt(s, SOL_SOCKET, SO_BINDTODEVICE, &ifreq, sizeof(ifreq));
+            setsockopt(s, SOL_SOCKET, SO_BINDTODEVICE, &ifreq, sizeof(ifreq));
 
             const struct timeval timeout = { 60, 0 }; /* 60 second timeout */
             setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
@@ -144,13 +166,124 @@ static void post_data(void *pvParameters)
 
             freeaddrinfo(res);
 
+
+            /* Delay this allocation, to avoid using this memory unless a
+             * connection is possible. */
+            if (!post_buf) {
+                post_buf = malloc(POST_BUFFER_SIZE);
+                if (!post_buf) {
+                    close(s);
+                    continue;
+                }
+            }
+
             /*
-             * The buffer to copy the data into needs to be aligned because
-             * reading the flash copies directly into it the buffer.
+             * Support for pushing the data to the server.
+             *
+             *
+             * For efficiency, want to find an index and total size to send, then
+             * send it in chunks, and only when this is done to go back and look
+             * for more in that index or move on and get a new index and size.
              */
-            uint32_t size = get_buffer_to_post(&index, &start, &post_buf[PREFIX_SIZE + 16]);
+
+            uint32_t size;
+            do {
+                size = index_size_being_pushed - index_size_pushed;
+                if (size > 4096) {
+                    /* Reset to search for the current index. */
+                    index_being_pushed = 0xffffffff;
+                    index_size_being_pushed = 0;
+                    index_size_pushed = 0;
+                    index_being_pushed_sealed = false;
+                    index_being_pushed_headp = false;
+                    size = 0;
+                    break;
+                }
+                if (size > 0) {
+                    /* More to push in the current known index range.
+                     * Limit the size to the maximum chunk size. */
+                    if (size > CHUNK_SIZE) {
+                        size = CHUNK_SIZE;
+                    }
+                    if (!get_buffer_range(index_being_pushed, index_size_pushed,
+                                          index_size_pushed + size,
+                                          &post_buf[PREFIX_SIZE + 16])) {
+                        /* Reset to search for the current index. */
+                        index_being_pushed = 0xffffffff;
+                        index_size_being_pushed = 0;
+                        index_size_pushed = 0;
+                        index_being_pushed_sealed = false;
+                        index_being_pushed_headp = false;
+                        size = 0;
+                    }
+                    break;
+                }
+
+                /* Check if the index range has grown. */
+                uint32_t last_index = index_being_pushed;
+                index_size_being_pushed = get_buffer_size(index_being_pushed,
+                                                          &index_being_pushed,
+                                                          &index_being_pushed_sealed,
+                                                          &index_being_pushed_headp);
+
+                if (index_being_pushed != last_index) {
+                    /* The index being pushed was not found. This might occur if
+                     * the buffer wraps and erases the sector, but this is
+                     * unlikely. It might also occur if search for an index
+                     * beyound the head. Push the index found, from the
+                     * start. */
+                    index_size_pushed = 0;
+                }
+
+                if (index_size_being_pushed > index_size_pushed) {
+                    /* Some more data to push now. */
+                    size = index_size_being_pushed - index_size_pushed;
+                    if (size > CHUNK_SIZE) {
+                        size = CHUNK_SIZE;
+                    }
+                    if (get_buffer_range(index_being_pushed, index_size_pushed,
+                                         index_size_pushed + size,
+                                         &post_buf[PREFIX_SIZE + 16])) {
+                        /* Done */
+                        break;
+                    }
+
+                    /* This might occur if the buffer wraps and erases the
+                     * sector. Just loop and retry. */
+                    index_size_being_pushed = 0;
+                    index_size_pushed = 0;
+                    index_being_pushed_sealed = false;
+                    continue;
+                }
+
+                if (index_size_being_pushed == index_size_pushed) {
+                    /* Nothing more to send for this index */
+                    size = 0;
+                    if (index_being_pushed_sealed && !index_being_pushed_headp) {
+                        /* Move on to the next index and recheck. */
+                        index_being_pushed++;
+                        index_size_being_pushed = 0;
+                        index_size_pushed = 0;
+                        index_being_pushed_sealed = false;
+                        index_being_pushed_headp = false;
+                        continue;
+                    }
+                    /* No more data is available, wait. */
+                    break;
+                }
+
+                /* Reset to search for the current index. */
+                index_being_pushed = 0xffffffff;
+                index_size_being_pushed = 0;
+                index_size_pushed = 0;
+                index_being_pushed_sealed = false;
+                index_being_pushed_headp = false;
+                size = 0;
+                break;
+            } while (size == 0);
 
             if (size == 0) {
+                clear_maybe_buffer_to_post();
                 close(s);
                 break;
             }
@@ -171,15 +304,15 @@ static void post_data(void *pvParameters)
             post_buf[PREFIX_SIZE + 6] = time >> 16;
             post_buf[PREFIX_SIZE + 7] = time >> 24;
 
-            post_buf[PREFIX_SIZE + 8] = index;
-            post_buf[PREFIX_SIZE + 9] = index >>  8;
-            post_buf[PREFIX_SIZE + 10] = index >> 16;
-            post_buf[PREFIX_SIZE + 11] = index >> 24;
+            post_buf[PREFIX_SIZE + 8] = index_being_pushed;
+            post_buf[PREFIX_SIZE + 9] = index_being_pushed >>  8;
+            post_buf[PREFIX_SIZE + 10] = index_being_pushed >> 16;
+            post_buf[PREFIX_SIZE + 11] = index_being_pushed >> 24;
 
-            post_buf[PREFIX_SIZE + 12] = start;
-            post_buf[PREFIX_SIZE + 13] = start >>  8;
-            post_buf[PREFIX_SIZE + 14] = start >> 16;
-            post_buf[PREFIX_SIZE + 15] = start >> 24;
+            post_buf[PREFIX_SIZE + 12] = index_size_pushed;
+            post_buf[PREFIX_SIZE + 13] = index_size_pushed >>  8;
+            post_buf[PREFIX_SIZE + 14] = index_size_pushed >> 16;
+            post_buf[PREFIX_SIZE + 15] = index_size_pushed >> 24;
 
             /*
              * Firstly use the prefix area for the key to implement MAC-SHA3.
@@ -200,6 +333,7 @@ static void post_data(void *pvParameters)
                                             "Content-Length: %d\r\n"
                                             "\r\n", param_web_path, param_web_server,
                                             param_web_port, 16 + size + SIGNATURE_SIZE);
+
             /*
              * Move the header up to meet the data.
              */
@@ -310,6 +444,7 @@ static void post_data(void *pvParameters)
                          * storage space used when a lot of sectors are posted
                          * one after the other, and one every 60 seconds seems
                          * adequate for the purpose of synchronizing the times.
+                         *
                          */
                         if (recv_sec > last_recv_sec + 60) {
                             post_buf[PREFIX_SIZE + 0] = time;
@@ -328,13 +463,13 @@ static void post_data(void *pvParameters)
                             post_buf[PREFIX_SIZE + 11] = recv_usec >> 24;
 
                             while (1) {
-                                uint32_t new_index = dbuf_append(last_index,
+                                uint32_t new_segment = dbuf_append(last_segment,
                                                                  DBUF_EVENT_POST_TIME,
                                                                  &post_buf[PREFIX_SIZE],
-                                                                 12, 0, 1);
-                                if (new_index == last_index)
+                                                                 12, 0);
+                                if (new_segment == last_segment)
                                     break;
-                                last_index = new_index;
+                                last_segment = new_segment;
                             }
 
                             last_recv_sec = recv_sec;
@@ -343,14 +478,54 @@ static void post_data(void *pvParameters)
                         /* The server response is used to set the buffer indexes
                          * known to have been received. This allows the server
                          * to request data be re-sent, or to skip over data
-                         * already received when restarted. A bad index or size
-                         * is handled when searching for the next buffer to post
-                         * so does not need limiting here. */
-                        note_buffer_posted(recv_index, recv_size);
+                         * already received when restarted.
+                         */
+                        if (recv_index != index_being_pushed) {
+                            if (recv_index > index_being_pushed &&
+                                index_being_pushed_headp) {
+                                /* Looks like a bad request from the server for
+                                 * an index beyond those stored on the
+                                 * device. Need to catch this or the device will
+                                 * continue sending data back and not stop.
+                                 */
+                                index_size_pushed = index_size_being_pushed;
+                            } else {
+                                index_being_pushed = recv_index;
+                                /* Ignore the size in this case, to avoid
+                                 * getting and checking the new index size.
+                                 * The server will move it along again.
+                                 */
+                                index_size_being_pushed = 0;
+                                index_size_pushed = 0;
+                                index_being_pushed_sealed = false;
+                                index_being_pushed_headp = false;
+                            }
+                        } else {
+                            if (recv_size > index_size_being_pushed) {
+                                recv_size = index_size_being_pushed;
+                            }
+                            index_size_pushed = recv_size;
+                        }
+                        blink_white();
                         hold_off_time = 0;
                     }
                 }
             }
+
+            /*
+             * At this point the server is expected to close the connection, so
+             * wait briefly for it to do so before giving up. While here consume
+             * any excess input to avoid a connection reset.
+             */
+            const struct timeval timeout5 = { 5, 0 }; /* 5 second timeout */
+            setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &timeout5, sizeof(timeout5));
+            size_t len;
+            for (len = 0; len < 4096; len++) {
+                char c;
+                int res = read(s, &c, 1);
+                if (res != 1) break;
+            }
+
             close(s);
         }
     }
@@ -365,6 +540,6 @@ void init_post()
         if (mode != STATION_MODE && mode != STATIONAP_MODE) {
             return;
         }
-        xTaskCreate(&post_data, "OAQ Post", 416, NULL, 1, &post_data_task);
+        xTaskCreate(&post_data, "OAQ Post", 448, NULL, 1, &post_data_task);
     }
 }

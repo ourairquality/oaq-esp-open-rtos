@@ -21,13 +21,14 @@
 
 uint32_t get_buffer_to_post(uint32_t *index, uint32_t *start, uint8_t *buf);
 void note_buffer_posted(uint32_t index, uint32_t size);
-uint32_t maybe_buffer_to_post();
+uint32_t maybe_buffer_to_post(void);
+void clear_maybe_buffer_to_post(void);
 
-uint32_t init_flash();
+uint32_t init_flash(void);
 void flash_data(void *pvParameters);
 
 extern TaskHandle_t flash_data_task;
 
-uint32_t get_buffer_size(uint32_t requested_index, uint32_t *index);
+uint32_t get_buffer_size(uint32_t requested_index, uint32_t *index, bool *sealed, bool *headp);
 bool get_buffer_range(uint32_t index, uint32_t start, uint32_t end, uint8_t *buf);
 bool erase_flash_data(void);

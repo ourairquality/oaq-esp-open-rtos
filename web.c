@@ -47,6 +47,7 @@
 #include "bme280.h"
 #include "bmp180.h"
 #include "i2c.h"
+#include "leds.h"
 
 #include "config.h"
 #include "wificfg/wificfg.h"
@@ -84,8 +85,9 @@ static int handle_index(int s, wificfg_method method,
         }
 
         uint32_t index;
-        uint32_t size = get_buffer_size(0xffffffff, &index);
-        snprintf(buf, len, "<dt>Flash sector</dt><dd>index %d, size %d</dd>", index, size);
+        bool sealed, headp;
+        uint32_t size = get_buffer_size(0xffffffff, &index, &sealed, &headp);
+        snprintf(buf, len, "<dt>Flash sector</dt><dd>index %u, size %u</dd>", index, size);
         if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
         if (wificfg_write_string_chunk(s, "<dt>Last measured data:</dt><dd></dd>", buf, len) < 0) return -1;
@@ -271,47 +273,49 @@ static int handle_config(int s, wificfg_method method,
     if (method != HTTP_METHOD_HEAD) {
         if (wificfg_write_string_chunk(s, http_config_content[0], buf, len) < 0) return -1;
 
-        int8_t board = 0; /* Nodemcu */
-        sysparam_get_int8("oaq_board", &board);
-        if (board == 0 && wificfg_write_string_chunk(s, " selected", buf, len) < 0) return -1;
+        int8_t leds = 1; /* Nodemcu */
+        sysparam_get_int8("oaq_leds", &leds);
+        if (leds == 0 && wificfg_write_string_chunk(s, " selected", buf, len) < 0) return -1;
         if (wificfg_write_string_chunk(s, http_config_content[1], buf, len) < 0) return -1;
-        if (board == 1 && wificfg_write_string_chunk(s, " selected", buf, len) < 0) return -1;
+        if (leds == 1 && wificfg_write_string_chunk(s, " selected", buf, len) < 0) return -1;
         if (wificfg_write_string_chunk(s, http_config_content[2], buf, len) < 0) return -1;
+        if (leds == 2 && wificfg_write_string_chunk(s, " selected", buf, len) < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_config_content[3], buf, len) < 0) return -1;
 
         int8_t pms_uart = 2; /* Enabled, RX */
         sysparam_get_int8("oaq_pms_uart", &pms_uart);
         if (pms_uart == 0 && wificfg_write_string_chunk(s, " selected", buf, len) < 0) return -1;
-        if (wificfg_write_string_chunk(s, http_config_content[3], buf, len) < 0) return -1;
-        if (pms_uart == 1 && wificfg_write_string_chunk(s, " selected", buf, len) < 0) return -1;
         if (wificfg_write_string_chunk(s, http_config_content[4], buf, len) < 0) return -1;
-        if (pms_uart == 2 && wificfg_write_string_chunk(s, " selected", buf, len) < 0) return -1;
+        if (pms_uart == 1 && wificfg_write_string_chunk(s, " selected", buf, len) < 0) return -1;
         if (wificfg_write_string_chunk(s, http_config_content[5], buf, len) < 0) return -1;
+        if (pms_uart == 2 && wificfg_write_string_chunk(s, " selected", buf, len) < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_config_content[6], buf, len) < 0) return -1;
 
         int8_t i2c_scl = 0;
         sysparam_get_int8("oaq_i2c_scl", &i2c_scl);
-        snprintf(buf, len, "%d", i2c_scl);
-        if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
-
-        if (wificfg_write_string_chunk(s, http_config_content[6], buf, len) < 0) return -1;
-
-        int8_t i2c_sda = 2;
-        sysparam_get_int8("oaq_i2c_sda", &i2c_sda);
-        snprintf(buf, len, "%d", i2c_sda);
+        snprintf(buf, len, "%u", i2c_scl);
         if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
         if (wificfg_write_string_chunk(s, http_config_content[7], buf, len) < 0) return -1;
+
+        int8_t i2c_sda = 2;
+        sysparam_get_int8("oaq_i2c_sda", &i2c_sda);
+        snprintf(buf, len, "%u", i2c_sda);
+        if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
+
+        if (wificfg_write_string_chunk(s, http_config_content[8], buf, len) < 0) return -1;
 
         int8_t tz = 0;
         sysparam_get_int8("oaq_tz", &tz);
         snprintf(buf, len, "%d", tz);
         if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
-        if (wificfg_write_string_chunk(s, http_config_content[8], buf, len) < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_config_content[9], buf, len) < 0) return -1;
 
         int8_t logging = 0;
         sysparam_get_int8("oaq_logging", &logging);
         if (logging && wificfg_write_string_chunk(s, "checked", buf, len) < 0) return -1;
-        if (wificfg_write_string_chunk(s, http_config_content[9], buf, len) < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_config_content[10], buf, len) < 0) return -1;
 
         char *web_server = NULL;
         sysparam_get_string("oaq_web_server", &web_server);
@@ -321,14 +325,14 @@ static int handle_config(int s, wificfg_method method,
             if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
         }
 
-        if (wificfg_write_string_chunk(s, http_config_content[10], buf, len) < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_config_content[11], buf, len) < 0) return -1;
 
         int32_t web_port = 80;
         sysparam_get_int32("oaq_web_port", &web_port);
-        snprintf(buf, len, "%d", web_port);
+        snprintf(buf, len, "%u", web_port);
         if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
-        if (wificfg_write_string_chunk(s, http_config_content[11], buf, len) < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_config_content[12], buf, len) < 0) return -1;
 
         char *web_path = NULL;
         sysparam_get_string("oaq_web_path", &web_path);
@@ -340,7 +344,7 @@ static int handle_config(int s, wificfg_method method,
         }
         if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
-        if (wificfg_write_string_chunk(s, http_config_content[12], buf, len) < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_config_content[13], buf, len) < 0) return -1;
 
         int32_t sensor_id = 0;
         if (sysparam_get_int32("oaq_sensor_id", &sensor_id) == SYSPARAM_OK) {
@@ -348,7 +352,7 @@ static int handle_config(int s, wificfg_method method,
             if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
         }
 
-        if (wificfg_write_string_chunk(s, http_config_content[13], buf, len) < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_config_content[14], buf, len) < 0) return -1;
 
         uint8_t *sha3_key = NULL;
         size_t actual_length;
@@ -362,7 +366,7 @@ static int handle_config(int s, wificfg_method method,
             }
         }
 
-        if (wificfg_write_string_chunk(s, http_config_content[14], buf, len) < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_config_content[15], buf, len) < 0) return -1;
 
         struct tm time;
         xSemaphoreTake(i2c_sem, portMAX_DELAY);
@@ -375,43 +379,43 @@ static int handle_config(int s, wificfg_method method,
             clock_time -= tz * 60 * 60;
             gmtime_r(&clock_time, &time);
 
-            if (wificfg_write_string_chunk(s, http_config_content[15], buf, len) < 0) return -1;
-
-            snprintf(buf, len, "%d", time.tm_year + 1900);
-            if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
-
             if (wificfg_write_string_chunk(s, http_config_content[16], buf, len) < 0) return -1;
 
-            snprintf(buf, len, "%d", time.tm_mon + 1);
+            snprintf(buf, len, "%u", time.tm_year + 1900);
             if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
             if (wificfg_write_string_chunk(s, http_config_content[17], buf, len) < 0) return -1;
 
-            snprintf(buf, len, "%d", time.tm_mday);
+            snprintf(buf, len, "%u", time.tm_mon + 1);
             if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
             if (wificfg_write_string_chunk(s, http_config_content[18], buf, len) < 0) return -1;
 
-            snprintf(buf, len, "%d", time.tm_hour);
+            snprintf(buf, len, "%u", time.tm_mday);
             if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
             if (wificfg_write_string_chunk(s, http_config_content[19], buf, len) < 0) return -1;
 
-            snprintf(buf, len, "%d", time.tm_min);
+            snprintf(buf, len, "%u", time.tm_hour);
             if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
             if (wificfg_write_string_chunk(s, http_config_content[20], buf, len) < 0) return -1;
 
-            snprintf(buf, len, "%d", time.tm_sec);
+            snprintf(buf, len, "%u", time.tm_min);
             if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
             if (wificfg_write_string_chunk(s, http_config_content[21], buf, len) < 0) return -1;
+
+            snprintf(buf, len, "%u", time.tm_sec);
+            if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
+
+            if (wificfg_write_string_chunk(s, http_config_content[22], buf, len) < 0) return -1;
         }
 
         /* Erase flash */
-        if (wificfg_write_string_chunk(s, http_config_content[22], buf, len) < 0) return -1;
-
         if (wificfg_write_string_chunk(s, http_config_content[23], buf, len) < 0) return -1;
+
+        if (wificfg_write_string_chunk(s, http_config_content[24], buf, len) < 0) return -1;
 
         if (wificfg_write_chunk_end(s) < 0) return -1;
     }
@@ -419,7 +423,7 @@ static int handle_config(int s, wificfg_method method,
 }
 
 typedef enum {
-    FORM_NAME_BOARD,
+    FORM_NAME_LEDS,
     FORM_NAME_PMS_UART,
     FORM_NAME_I2C_SCL,
     FORM_NAME_I2C_SDA,
@@ -438,6 +442,7 @@ typedef enum {
     FORM_NAME_SEC,
     FORM_NAME_UTIMEH,
     FORM_NAME_UTIMEL,
+    FORM_NAME_MESSAGE,
     FORM_NAME_INDEX,
     FORM_NAME_START,
     FORM_NAME_END,
@@ -449,7 +454,7 @@ static const struct {
     const char *str;
     form_name name;
 } form_name_table[] = {
-    {"oaq_board", FORM_NAME_BOARD},
+    {"oaq_leds", FORM_NAME_LEDS},
     {"oaq_pms_uart", FORM_NAME_PMS_UART},
     {"oaq_i2c_scl", FORM_NAME_I2C_SCL},
     {"oaq_i2c_sda", FORM_NAME_I2C_SDA},
@@ -468,6 +473,7 @@ static const struct {
     {"oaq_sec", FORM_NAME_SEC},
     {"oaq_utimeh", FORM_NAME_UTIMEH},
     {"oaq_utimel", FORM_NAME_UTIMEL},
+    {"oaq_message", FORM_NAME_MESSAGE},
     {"oaq_index", FORM_NAME_INDEX},
     {"oaq_start", FORM_NAME_START},
     {"oaq_end", FORM_NAME_END},
@@ -712,10 +718,14 @@ static int handle_config_post(int s, wificfg_method method,
                 wificfg_form_url_decode(buf);
 
                 switch (name) {
-                case FORM_NAME_BOARD: {
-                    int8_t board = strtoul(buf, NULL, 10);
-                    if (board >= 0 && board <= 1)
-                        sysparam_set_int8("oaq_board", board);
+                case FORM_NAME_LEDS: {
+                    int8_t leds = strtoul(buf, NULL, 10);
+                    if (leds >= 0 && leds <= 2) {
+                        sysparam_set_int8("oaq_leds", leds);
+                        /* Apply this now. */
+                        param_leds = leds;
+                        init_blink();
+                    }
                     break;
                 }
                 case FORM_NAME_PMS_UART: {
@@ -1007,53 +1017,182 @@ static int handle_plot(int s, wificfg_method method,
     return 0;
 }
 
-static uint64_t last_client_utime = 0;
 static uint64_t last_logged_client_utime = 0;
-static uint32_t last_client_utime_index = 0;
+static uint32_t last_client_utime_segment = 0;
 
 /* The utime is a time from a web browser Date.now(), so in milli-seconds. */
 void log_client_utime(uint32_t utimeh, uint32_t utimel)
 {
-    uint64_t utime = (uint64_t)utimeh << 32 | utimel;
+    uint64_t utime = ((uint64_t)utimeh << 32) | utimel;
 
-    // Quick validity check.
-    if (utime < 1502090000000UL)
+    /* Handle increases and decreases in time, in case the client has
+     * adjusted time, or in case of conflicting client times. */
+    int64_t utime_delta = utime - last_logged_client_utime;
+
+    /* Don't log more than once every 10 minutes. */
+    if (utime_delta > 10 * 60 * 1000) {
+        uint8_t outbuf[10];
+        while (1) {
+            /* Delta encoding */
+            uint32_t len = emit_leb128_signed(outbuf, 0, utime_delta);
+            /* Flag this for high precision time (no truncation) */
+            uint32_t new_segment = dbuf_append(last_client_utime_segment,
+                                               DBUF_EVENT_CLIENT_UTIME,
+                                               outbuf, len, 0);
+            if (new_segment == last_client_utime_segment)
+                break;
+
+            /* Moved on to a new buffer. Reset the delta encoding
+             * state and retry. */
+            last_client_utime_segment = new_segment;
+            last_logged_client_utime = 0;
+        }
+        /*
+         * Commit the values logged. Note this is the only task
+         * accessing this state so these updates are synchronized with
+         * the last event of this class append.
+         */
+        last_logged_client_utime = utime;
+    }
+}
+
+/*
+ * Log a text string with the given length (so it could be a binary
+ * blob) and the client utime passed along with it. The string may be
+ * NULL or of zero length, and the event is still logged, this allows
+ * a quick ping event to be logged.
+ *
+ * This shares the same utime delta encoding as the utime event. Both
+ * are called from the same web server thread so there is no need for
+ * locking.
+ */
+void log_client_text_message(uint32_t utimeh, uint32_t utimel, char *str, size_t str_len)
+{
+    if (!str || str_len == 0) {
+        /* Canonicalize these */
+        str_len = 0;
+        str = NULL;
+    } else if (str_len > 50) {
+        /* Limit the logged length? */
+        str_len = 50;
+    }
+
+    uint64_t utime = ((uint64_t)utimeh << 32) | utimel;
+
+    /* Handle increases and decreases in time, in case the client has
+     * adjusted time, or in case of conflicting client times. */
+    int64_t utime_delta = utime - last_logged_client_utime;
+
+    uint8_t *outbuf;
+    outbuf = malloc(10 + 4 + str_len); // ??
+    if (!outbuf) {
         return;
+    }
 
-    // Don't log more than once every 15 minutes.
-    if (utime - last_logged_client_utime > 15 * 60 * 1000) {
-        // Only log the client time if there was another recent ping,
-        // to avoid really delayed connections.
-        if (utime - last_client_utime < 2000) {
-            uint8_t outbuf[10];
-            while (1) {
-                /* Delta encoding */
-                uint64_t utime_delta = utime - last_logged_client_utime;
-                uint32_t len = emit_leb128_signed(outbuf, 0, utime_delta);
-                /* Flag this for high precision time (no
-                 * truncation), and to skip logging if the immediate
-                 * prior event is the same. */
-                uint32_t new_index = dbuf_append(last_client_utime_index,
-                                                 DBUF_EVENT_CLIENT_UTIME,
-                                                 outbuf, len, 0, 1);
-                if (new_index == last_client_utime_index)
-                    break;
+    while (1) {
+        /* Delta encoding */
+        uint32_t len = emit_leb128_signed(outbuf, 0, utime_delta);
+        len = emit_leb128(outbuf, len, str_len);
+        if (str_len) {
+            memcpy(outbuf + len, str, str_len);
+            len += str_len;
+        }
+        /* Flag this for high precision time (no truncation) */
+        uint32_t new_segment = dbuf_append(last_client_utime_segment,
+                                           DBUF_EVENT_TEXT_MESSAGE,
+                                           outbuf, len, 0);
+        if (new_segment == last_client_utime_segment)
+            break;
 
-                /* Moved on to a new buffer. Reset the delta encoding
-                 * state and retry. */
-                last_client_utime_index = new_index;
-                last_logged_client_utime = 0;
+        /* Moved on to a new buffer. Reset the delta encoding
+         * state and retry. */
+        last_client_utime_segment = new_segment;
+        last_logged_client_utime = 0;
+    }
+
+    free(outbuf);
+
+    /*
+     * Commit the values logged. Note this is the only task
+     * accessing this state so these updates are synchronized with
+     * the last event of this class append.
+     */
+    last_logged_client_utime = utime;
+}
+
+
+static int handle_message_post(int s, wificfg_method method,
+                               uint32_t content_length,
+                               wificfg_content_type content_type,
+                               char *buf, size_t len)
+{
+    if (content_type != HTTP_CONTENT_TYPE_WWW_FORM_URLENCODED) {
+        return wificfg_write_string(s, "HTTP/1.1 400 \r\n"
+                                    "Content-Type: text/html\r\n"
+                                    "Content-Length: 0\r\n"
+                                    "Connection: close\r\n"
+                                    "\r\n");
+    }
+
+    size_t rem = content_length;
+    bool valp = false;
+    uint32_t utimeh = 0, utimel = 0;
+    bool utimehp = false, utimelp = false;
+    char *str = NULL;
+    size_t str_len = 0;
+
+    while (rem > 0) {
+        int r = wificfg_form_name_value(s, &valp, &rem, buf, len);
+
+        if (r < 0)
+            break;
+
+        wificfg_form_url_decode(buf);
+
+        form_name name = intern_form_name(buf);
+
+        if (valp) {
+            int r = wificfg_form_name_value(s, NULL, &rem, buf, len);
+            if (r < 0)
+                break;
+
+            wificfg_form_url_decode(buf);
+
+            switch (name) {
+            case FORM_NAME_MESSAGE: {
+                str_len = strlen(buf);
+                str = malloc(str_len + 1);
+                strcpy(str, buf);
+                break;
             }
-            /*
-             * Commit the values logged. Note this is the only task
-             * accessing this state so these updates are synchronized
-             * with the last event of this class append.
-             */
-            last_logged_client_utime = utime;
+            case FORM_NAME_UTIMEH: {
+                utimeh = strtoul(buf, NULL, 10);
+                utimehp = true;
+                break;
+            }
+            case FORM_NAME_UTIMEL: {
+                utimel = strtoul(buf, NULL, 10);
+                utimelp = true;
+                break;
+            }
+            default:
+                break;
+            }
         }
     }
-    last_client_utime = utime;
+
+    /* Log the event even without a string. */
+    if (utimehp && utimelp) {
+        log_client_text_message(utimeh, utimel, str, str_len);
+    }
+
+    if (str) {
+        free(str);
+    }
+
+    return wificfg_write_string(s, http_home_redirect);
 }
+
 
 static const char http_success_json_header[] = "HTTP/1.10 200 \r\n"
     "Content-Type: application/json; charset=utf-8\r\n"
@@ -1125,7 +1264,7 @@ static int handle_recent_data_post(int s, wificfg_method method,
 
     if (method != HTTP_METHOD_HEAD) {
         uint32_t count = RTC.COUNTER;
-        snprintf(buf, len, "{\"counter\":%d", count);
+        snprintf(buf, len, "{\"counter\":%u", count);
         if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
         {
@@ -1314,9 +1453,12 @@ static int handle_buffer_size_post(int s, wificfg_method method,
     log_client_utime(utimeh, utimel);
 
     uint32_t index = 0;
-    uint32_t size = get_buffer_size(requested_index, &index);
+    bool sealed, headp;
+    uint32_t size = get_buffer_size(requested_index, &index, &sealed, &headp);
     if (wificfg_write_string(s, http_success_json_header) < 0) return -1;
-    snprintf(buf, len, "{\"index\":%d,\"size\":%d}", index, size);
+    snprintf(buf, len, "{\"index\":%u,\"size\":%u", index, size);
+    if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
+    snprintf(buf, len, ",\"sealed\":%u,\"headp\":%u}", sealed, headp);
     if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
     if (wificfg_write_chunk_end(s) < 0) return -1;
     return 0;
@@ -1404,7 +1546,8 @@ static int handle_get_buffer_post(int s, wificfg_method method,
      * the client is expected to notice such an error.
      */
     uint32_t index = 0;
-    uint32_t size = get_buffer_size(requested_index, &index);
+    bool sealed, headp;
+    uint32_t size = get_buffer_size(requested_index, &index, &sealed, &headp);
 
     if (index != requested_index) {
         return wificfg_write_string(s, "HTTP/1.1 404 \r\n"
@@ -1424,7 +1567,7 @@ static int handle_get_buffer_post(int s, wificfg_method method,
 
     uint32_t length = end - start;
     if (wificfg_write_string(s, http_success_binary_header) < 0) return -1;
-    snprintf(buf, len, "Content-Length: %d\r\n\r\n", length);
+    snprintf(buf, len, "Content-Length: %u\r\n\r\n", length);
     if (wificfg_write_string(s, buf) < 0) return -1;
 
     /*
@@ -1469,6 +1612,8 @@ static const wificfg_dispatch dispatch_list[] = {
     {"/time", HTTP_METHOD_POST, handle_time_post, true},
     {"/time.html", HTTP_METHOD_POST, handle_time_post, true},
     {"/erasedata.html", HTTP_METHOD_POST, handle_erase_data_post, true},
+    {"/message", HTTP_METHOD_POST, handle_message_post, false},
+    {"/message.html", HTTP_METHOD_POST, handle_message_post, false},
     //
     {"/smoothie.js", HTTP_METHOD_GET, handle_smoothie, false},
     {"/plot.js", HTTP_METHOD_GET, handle_plot_script, false},

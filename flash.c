@@ -60,7 +60,7 @@
 
 #include "buffer.h"
 #include "leds.h"
-#include "post.h"
+#include "push.h"
 
 /*
  * For a 32Mbit flash, or 4MB, there are 1024 flash sectors. The first 256 are
@@ -339,174 +339,6 @@ void flash_data(void *pvParameters)
     }
 }
 
-static uint32_t last_index_posted = 0;
-static uint32_t last_index_size_posted = 0;
-
-uint32_t get_buffer_to_post(uint32_t *index, uint32_t *start, uint8_t *buf)
-{
-    xSemaphoreTake(flash_state_sem, portMAX_DELAY);
-
-    /* Initialize, can use sector zero here to represent 'none'. */
-    uint16_t sector_to_post = 0;
-    uint32_t index_to_post = 0xffffffff;
-
-    if (flash_sector_initialized) {
-        if (decode_flash_sector_index(flash_sector, index)) {
-            if (last_index_posted > *index) {
-                /* Bad last_index_posted reset. */
-                last_index_posted = *index;
-                last_index_size_posted = 0;
-            }
-            if (*index == last_index_posted) {
-                if (last_index_size_posted < 4096) {
-                    /* Check the size to post.  Limit and align the start. */
-                    *start = last_index_size_posted & 0xffc;
-                    sdk_SpiFlashOpResult res;
-                    res = sdk_spi_flash_read(flash_sector * 4096 + *start, (uint32_t *)buf, 4096 - *start);
-                    if (res == SPI_FLASH_RESULT_OK) {
-                        /* Skip sending trailing ones bits. */
-                        uint32_t size;
-                        for (size = 4096 - *start; size > 0; size--) {
-                            if (buf[size - 1] != 0xff)
-                                break;
-                        }
-                        /* Take account of the alignment above to avoid posting
-                         * data already completely posted. */
-                        if (*start + size <= last_index_size_posted)
-                            size = 0;
-                        maybe_flash_to_post = size;
-                        xSemaphoreGive(flash_state_sem);
-                        return size;
-                    }
-                }
-                /* Here the current flash sector has been posted, so done. */
-                maybe_flash_to_post = 0;
-                xSemaphoreGive(flash_state_sem);
-                return 0;
-            } else {
-                /* Not the last posted but still a candidate to post. */
-                sector_to_post = flash_sector;
-                index_to_post = *index;
-            }
-        }
-    }
-
-    /* Search backwards from the current head flash_sector looking for the first
-     * index not posted. */
-    uint32_t sector = flash_sector - 1;
-    if (sector < BUFFER_FLASH_FIRST_SECTOR) {
-        sector = BUFFER_FLASH_FIRST_SECTOR + BUFFER_FLASH_NUM_SECTORS - 1;
-    }
-
-    while (1) {
-        if (decode_flash_sector_index(sector, index)) {
-            /*
-             * The index should decrease monotonically so stop searching here if
-             * not because the data is corrupt.
-             */
-            if (index_to_post != 0xffffffff && *index != index_to_post - 1) {
-                break;
-            }
-            if (last_index_posted > *index) {
-                /* Bad last_index_posted reset. */
-                last_index_posted = *index;
-                last_index_size_posted = 0;
-            }
-            if (*index == last_index_posted) {
-                /* Either re-sending this sector or the prior. Need to check the
-                 * size that needs to be sent. */
-                if (last_index_size_posted < 4096) {
-                    /* Limit and align the start. */
-                    *start = last_index_size_posted & 0xffc;
-                    sdk_SpiFlashOpResult res;
-                    res = sdk_spi_flash_read(sector * 4096 + *start, (uint32_t *)buf, 4096 - *start);
-                    if (res == SPI_FLASH_RESULT_OK) {
-                        /* Skip sending trailing ones bits. */
-                        uint32_t size;
-                        for (size = 4096 - *start; size > 0; size--) {
-                            if (buf[size - 1] != 0xff)
-                                break;
-                        }
-                        /* Take account of the alignment above to avoid posting
-                         * data already completely posted. */
-                        if (*start + size > last_index_size_posted) {
-                            /* Resend. It's already read and in the buffer and
-                             * the 'start' is set, so done. */
-                            maybe_flash_to_post = size;
-                            xSemaphoreGive(flash_state_sem);
-                            return size;
-                        }
-                    } else {
-                        /* Just ignore the index/sector, send the next. */
-                    }
-                }
-            }
-
-            if (*index <= last_index_posted) {
-                /* Done searching, send the last valid index found which should
-                 * be the index after the last posted. */
-                break;
-            }
-
-            if (*index < index_to_post) {
-                /* Note the sector each time the index decreases, to note the
-                 * latest sector with a given index. */
-                index_to_post = *index;
-                sector_to_post = sector;
-            }
-        }
-        sector--;
-        if (sector < BUFFER_FLASH_FIRST_SECTOR) {
-            sector = BUFFER_FLASH_FIRST_SECTOR + BUFFER_FLASH_NUM_SECTORS - 1;
-        }
-        if (sector == flash_sector) {
-            /* Wrapped. */
-            break;
-        }
-    }
-
-    *index = index_to_post;
-
-    uint32_t size = 0;
-    if (sector_to_post) {
-        /* Always sends from the start of the sector in this path. */
-        *start = 0;
-        /* Read the entire sector. */
-        sdk_SpiFlashOpResult res;
-        res = sdk_spi_flash_read(sector_to_post * 4096, (uint32_t *)buf, 4096);
-        if (res == SPI_FLASH_RESULT_OK) {
-            /* Skip sending trailing ones bits. */
-            for (size = 4096; size > 0; size--) {
-                if (buf[size - 1] != 0xff)
-                    break;
-            }
-        } else {
-            /* Fill the buffer with an invalid index value, and a short invalid
-             * length to communicate the failure to the server. */
-            buf[0] = index_to_post;
-            buf[1] = index_to_post >> 8;
-            buf[2] = index_to_post >> 16;
-            buf[3] = index_to_post >> 24;
-            size = 4;
-            /* Move on to next index. */
-            last_index_posted = index_to_post;
-            last_index_size_posted = 4096;
-        }
-    }
-    maybe_flash_to_post = size;
-    xSemaphoreGive(flash_state_sem);
-    return size;
-}
-
-void note_buffer_posted(uint32_t index, uint32_t size)
-{
-    xSemaphoreTake(flash_state_sem, portMAX_DELAY);
-    last_index_posted = index;
-    last_index_size_posted = size;
-    xSemaphoreGive(flash_state_sem);
-    blink_white();
-}
-
 /*
  * Return 0 if there is no data to post otherwise non-zero. The caller is the
  * only task that is expected to reset this, and the flash_data_task the only
@@ -522,27 +354,45 @@ uint32_t maybe_buffer_to_post()
     return maybe;
 }
 
+void clear_maybe_buffer_to_post()
+{
+    xSemaphoreTake(flash_state_sem, portMAX_DELAY);
+    maybe_flash_to_post = 0;
+    xSemaphoreGive(flash_state_sem);
+    return;
+}
+
 
 /*
- * Request the current length of the buffer with the given index or
- * the first buffer with an index less than that requested to make it
- * easy to get both the current index and size. Returns the oldest
- * buffer and its size if no buffers match, when requesting an old
- * index no longer in the flash. Used by the web interface to give the
- * content-length of a response. The buffer might grow while posting,
- * by the response will only send the amount indicated here. This
- * could also be used to support requesting a range, allowing the web
- * client to probe if there is more data to download.
+ * Request the current length of the buffer with the given index or the first
+ * buffer with an index less than that requested to make it easy to get both the
+ * current index and size. Returns the oldest buffer and its size if no buffers
+ * match, when requesting an old index no longer in the flash. Used by the web
+ * interface to give the content-length of a response, and the data post thread
+ * to search for more data. The buffer might grow while posting, but the
+ * response will only send the amount indicated here. This could also be used to
+ * support requesting a range, allowing the web client to probe if there is more
+ * data to download.
+ *
+ * All sectors but the current head are sealed and no more data is written to
+ * them, and it is useful to know if the returned index is sealed in which case
+ * it can not grow to have more data.
+ *
+ * The first sector with an index is the head. It is useful to know if a
+ * returned index is the head, to know if it can be advanced to find more data.
  */
-uint32_t get_buffer_size(uint32_t requested_index, uint32_t *index)
+uint32_t get_buffer_size(uint32_t requested_index, uint32_t *index, bool *sealed, bool *headp)
 {
     xSemaphoreTake(flash_state_sem, portMAX_DELAY);
 
+    /* Low sectors hold code and not data, so zero can represent invalid. */
     uint32_t last_sector = 0;
+    uint32_t head_sector = 0;
 
     if (flash_sector_initialized) {
         if (decode_flash_sector_index(flash_sector, index)) {
             last_sector = flash_sector;
+            head_sector = flash_sector;
             if (*index <= requested_index) {
                 sdk_SpiFlashOpResult res;
                 res = sdk_spi_flash_read(flash_sector * 4096, (uint32_t *)flash_buf, 4096);
@@ -552,6 +402,8 @@ uint32_t get_buffer_size(uint32_t requested_index, uint32_t *index)
                         if (flash_buf[size - 1] != 0xff)
                             break;
                     }
+                    *sealed = false;
+                    *headp = true;
                     xSemaphoreGive(flash_state_sem);
                     return size;
                 }
@@ -560,7 +412,7 @@ uint32_t get_buffer_size(uint32_t requested_index, uint32_t *index)
     }
 
     /* Search backwards from the current head flash_sector looking for the first
-     * index not posted. */
+     * index requested. */
     uint32_t sector = flash_sector - 1;
     if (sector < BUFFER_FLASH_FIRST_SECTOR) {
         sector = BUFFER_FLASH_FIRST_SECTOR + BUFFER_FLASH_NUM_SECTORS - 1;
@@ -569,6 +421,9 @@ uint32_t get_buffer_size(uint32_t requested_index, uint32_t *index)
     while (1) {
         if (decode_flash_sector_index(sector, index)) {
             last_sector = sector;
+            if (!head_sector) {
+                head_sector = sector;
+            }
             if (*index <= requested_index) {
                 sdk_SpiFlashOpResult res;
                 memset(flash_buf, 0xa5, 4096);
@@ -579,10 +434,15 @@ uint32_t get_buffer_size(uint32_t requested_index, uint32_t *index)
                         if (flash_buf[size - 1] != 0xff)
                             break;
                     }
+                    *sealed = (sector != flash_sector);
+                    *headp = (sector == head_sector);
                     xSemaphoreGive(flash_state_sem);
                     return size;
                 }
             }
+            /* Could decode an index, but it was not a match, so from here on
+             * this is not the head index. */
+            *headp = false;
         }
         sector--;
         if (sector < BUFFER_FLASH_FIRST_SECTOR) {
@@ -595,7 +455,7 @@ uint32_t get_buffer_size(uint32_t requested_index, uint32_t *index)
     }
 
     if (last_sector != 0) {
-        // Found something, so return it and it's size.
+        /* Found something, so return it and it's size. */
         if (decode_flash_sector_index(last_sector, index)) {
             sdk_SpiFlashOpResult res;
             res = sdk_spi_flash_read(last_sector * 4096, (uint32_t *)flash_buf, 4096);
@@ -605,6 +465,8 @@ uint32_t get_buffer_size(uint32_t requested_index, uint32_t *index)
                     if (flash_buf[size - 1] != 0xff)
                         break;
                 }
+                *sealed = (last_sector != flash_sector);
+                *headp = (sector == head_sector);
                 xSemaphoreGive(flash_state_sem);
                 return size;
             }
@@ -614,17 +476,19 @@ uint32_t get_buffer_size(uint32_t requested_index, uint32_t *index)
     xSemaphoreGive(flash_state_sem);
 
     *index = 0;
+    *sealed = false;
+    *headp = true;
     return 0;
 }
 
+
 /*
- * Return a range of the buffer with the given index. If the buffer
- * index is no longer available then return false, otherwise success,
- * which can happen if reading from the tail of the FIFO. The http
- * response will be truncated on such a failure and less than the
- * length probe at the start of the response, the http response will
- * send a response with a content-length and the client can detect
- * the truncated response.
+ * Return a range of the buffer with the given index. If the buffer index is no
+ * longer available then return false, otherwise success, which can happen if
+ * reading from the tail of the FIFO. The http response will be truncated on
+ * such a failure and less than the length probe at the start of the response,
+ * the http response will send a response with a content-length and the client
+ * can detect the truncated response.
  */
 bool get_buffer_range(uint32_t index, uint32_t start, uint32_t end, uint8_t *buf)
 {
@@ -677,9 +541,10 @@ bool get_buffer_range(uint32_t index, uint32_t start, uint32_t end, uint8_t *buf
 }
 
 
+
 /* Erase all the flash data and reinitialize.
-   TODO check how other code interacts with this?
-   */
+ * TODO check how other code interacts with this?
+ */
 bool erase_flash_data() {
     /*
      * Disable buffer logging during this operation.
@@ -707,9 +572,8 @@ bool erase_flash_data() {
     /* No valid sectors, start at the first sector. */
     flash_sector = BUFFER_FLASH_FIRST_SECTOR;
     flash_sector_initialized = 0;
-    last_index_posted = 0;
-    last_index_size_posted = 0;
     maybe_flash_to_post = 0;
+    // TODO rest the push task.
 
     xSemaphoreGive(flash_state_sem);
     set_buffer_logging(logging);

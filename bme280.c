@@ -65,7 +65,7 @@ bool bme280_temp_press_rh(uint32_t *counter, float *temp, float *press, float *r
 static void bme280_read_task(void *pvParameters)
 {
     /* Delta encoding state. */
-    uint32_t last_index = 0;
+    uint32_t last_segment = 0;
     uint32_t last_bme280_temp = 0;
     uint32_t last_bme280_pressure = 0;
     uint32_t last_bme280_humidity = 0;
@@ -129,13 +129,13 @@ static void bme280_read_task(void *pvParameters)
                 code = DBUF_EVENT_BME280_TEMP_PRESSURE_RH;
             }
 
-            uint32_t new_index = dbuf_append(last_index, code, outbuf, len, 1, 0);
-            if (new_index == last_index)
+            uint32_t new_segment = dbuf_append(last_segment, code, outbuf, len, 1);
+            if (new_segment == last_segment)
                 break;
 
             /* Moved on to a new buffer. Reset the delta encoding
              * state and retry. */
-            last_index = new_index;
+            last_segment = new_segment;
             last_bme280_temp = 0;
             last_bme280_pressure = 0;
             last_bme280_humidity = 0;
@@ -158,5 +158,5 @@ static void bme280_read_task(void *pvParameters)
 
 void init_bme280()
 {
-    xTaskCreate(&bme280_read_task, "BME280 reader", 256, NULL, 2, NULL);
+    xTaskCreate(&bme280_read_task, "BME280 reader", 288, NULL, 2, NULL);
 }
