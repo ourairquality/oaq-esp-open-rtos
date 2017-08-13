@@ -464,15 +464,15 @@ static void post_data(void *pvParameters)
 
                             while (1) {
                                 uint32_t new_segment = dbuf_append(last_segment,
-                                                                 DBUF_EVENT_POST_TIME,
-                                                                 &post_buf[PREFIX_SIZE],
-                                                                 12, 0);
-                                if (new_segment == last_segment)
+                                                                   DBUF_EVENT_POST_TIME,
+                                                                   &post_buf[PREFIX_SIZE],
+                                                                   12, 0);
+                                if (new_segment == last_segment) {
+                                    last_recv_sec = recv_sec;
                                     break;
+                                }
                                 last_segment = new_segment;
                             }
-
-                            last_recv_sec = recv_sec;
                         }
 
                         /* The server response is used to set the buffer indexes

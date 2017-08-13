@@ -130,11 +130,20 @@ static void bme280_read_task(void *pvParameters)
             }
 
             uint32_t new_segment = dbuf_append(last_segment, code, outbuf, len, 1);
-            if (new_segment == last_segment)
+            if (new_segment == last_segment) {
+                /*
+                 * Commit the values logged. Note this is the only task
+                 * accessing this state so these updates are synchronized with
+                 * the last event of this class append.
+                 */
+                last_bme280_temp = temperature;
+                last_bme280_pressure = pressure;
+                last_bme280_humidity = humidity;
                 break;
+            }
 
-            /* Moved on to a new buffer. Reset the delta encoding
-             * state and retry. */
+            /* Moved on to a new buffer. Reset the delta encoding state and
+             * retry. */
             last_segment = new_segment;
             last_bme280_temp = 0;
             last_bme280_pressure = 0;
@@ -142,15 +151,6 @@ static void bme280_read_task(void *pvParameters)
         };
 
         blink_green();
-
-        /*
-         * Commit the values logged. Note this is the only task
-         * accessing this state so these updates are synchronized with
-         * the last event of this class append.
-         */
-        last_bme280_temp = temperature;
-        last_bme280_pressure = pressure;
-        last_bme280_humidity = humidity;
     }
 }
 

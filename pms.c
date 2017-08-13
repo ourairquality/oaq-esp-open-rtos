@@ -278,7 +278,7 @@ static void pms_read_task(void *pvParameters)
         int32_t c3d = 0;
         int32_t c4d = 0;
         int32_t c5d = 0;
-        
+
         if (length == 0x1c) {
             c3d = c3 - c4;
             c4d = c4 - c5;
@@ -333,7 +333,7 @@ static void pms_read_task(void *pvParameters)
                 emit_var_int(c6 - last_c6);
             }
             emit_var_int(r1 - last_r1);
-            
+
             /* Emit at least eight bits of the device supplied checksum and fill
              * to a byte boundary with the rest so there will always be at least
              * eight checksum bits and often more and at most 15 bits. */
@@ -342,8 +342,25 @@ static void pms_read_task(void *pvParameters)
             int len = outlen;
             int32_t code = length == 0x14 ? DBUF_EVENT_PMS3003 : DBUF_EVENT_PMS5003;
             uint32_t new_segment = dbuf_append(last_segment, code, outbuf, len, 1);
-            if (new_segment == last_segment)
+            if (new_segment == last_segment) {
+                /* Commit the values logged. Note this is the only task
+                 * accessing this state so these updates are synchronized with
+                 * the last event of this class append. */
+                last_pm1a = pm1a;
+                last_pm25ad = pm25ad;
+                last_pm10ad = pm10ad;
+                last_pm1b = pm1b;
+                last_pm25bd = pm25bd;
+                last_pm10bd = pm10bd;
+                last_c1d = c1d;
+                last_c2d = c2d;
+                last_c3d = c3d;
+                last_c4d = c4d;
+                last_c5d = c5d;
+                last_c6 = c6;
+                last_r1 = r1;
                 break;
+            }
 
             /* Moved on to a new buffer. Reset the delta encoding state and
              * retry. */
@@ -364,23 +381,6 @@ static void pms_read_task(void *pvParameters)
         };
 
         blink_green();
-        
-        /* Commit the values logged. Note this is the only task accessing this
-         * state so these updates are synchronized with the last event of this
-         * class append. */
-        last_pm1a = pm1a;
-        last_pm25ad = pm25ad;
-        last_pm10ad = pm10ad;
-        last_pm1b = pm1b;
-        last_pm25bd = pm25bd;
-        last_pm10bd = pm10bd;
-        last_c1d = c1d;
-        last_c2d = c2d;
-        last_c3d = c3d;
-        last_c4d = c4d;
-        last_c5d = c5d;
-        last_c6 = c6;
-        last_r1 = r1;
     }
 }
 

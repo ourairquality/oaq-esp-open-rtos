@@ -319,25 +319,25 @@ static void sht2x_read_task(void *pvParameters)
             outbuf[len++] = temp_crc ^ rh_crc;
             int32_t code = DBUF_EVENT_SHT2X_TEMP_HUM;
             uint32_t new_segment = dbuf_append(last_segment, code, outbuf, len, 1);
-            if (new_segment == last_segment)
+            if (new_segment == last_segment) {
+                /*
+                 * Commit the values logged. Note this is the only task
+                 * accessing this state so these updates are synchronized with
+                 * the last event of this class append.
+                 */
+                last_temp = temp;
+                last_rh = rh;
                 break;
+            }
 
-            /* Moved on to a new buffer. Reset the delta encoding
-             * state and retry. */
+            /* Moved on to a new buffer. Reset the delta encoding state and
+             * retry. */
             last_segment = new_segment;
             last_temp = 0;
             last_rh = 0;
         };
 
         blink_green();
-
-        /*
-         * Commit the values logged. Note this is the only task
-         * accessing this state so these updates are synchronized with
-         * the last event of this class append.
-         */
-        last_temp = temp;
-        last_rh = rh;
     }
 }
 

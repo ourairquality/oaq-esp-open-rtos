@@ -1025,35 +1025,40 @@ void log_client_utime(uint32_t utimeh, uint32_t utimel)
 {
     uint64_t utime = ((uint64_t)utimeh << 32) | utimel;
 
-    /* Handle increases and decreases in time, in case the client has
-     * adjusted time, or in case of conflicting client times. */
-    int64_t utime_delta = utime - last_logged_client_utime;
+    uint8_t outbuf[10];
+    while (1) {
+        /* Delta encoding. Handle increases and decreases in time, in case
+         * the client has adjusted time or conflicting client times. */
+        int64_t utime_delta = utime - last_logged_client_utime;
 
-    /* Don't log more than once every 10 minutes. */
-    if (utime_delta > 10 * 60 * 1000) {
-        uint8_t outbuf[10];
-        while (1) {
-            /* Delta encoding */
-            uint32_t len = emit_leb128_signed(outbuf, 0, utime_delta);
-            /* Flag this for high precision time (no truncation) */
-            uint32_t new_segment = dbuf_append(last_client_utime_segment,
-                                               DBUF_EVENT_CLIENT_UTIME,
-                                               outbuf, len, 0);
-            if (new_segment == last_client_utime_segment)
-                break;
-
-            /* Moved on to a new buffer. Reset the delta encoding
-             * state and retry. */
-            last_client_utime_segment = new_segment;
-            last_logged_client_utime = 0;
+        /* Except for the first utime in a segment or backwards steps, do not
+         * log more than once every 10 minutes. */
+        if (last_logged_client_utime > 0 && utime_delta > 0 &&
+            utime_delta < 10 * 60 * 1000) {
+            break;
         }
-        /*
-         * Commit the values logged. Note this is the only task
-         * accessing this state so these updates are synchronized with
-         * the last event of this class append.
-         */
-        last_logged_client_utime = utime;
+
+        uint32_t len = emit_leb128_signed(outbuf, 0, utime_delta);
+        /* Flag this for high precision time (no truncation) */
+        uint32_t new_segment = dbuf_append(last_client_utime_segment,
+                                           DBUF_EVENT_CLIENT_UTIME,
+                                           outbuf, len, 0);
+        if (new_segment == last_client_utime_segment) {
+            /*
+             * Commit the values logged. Note this is the only task accessing
+             * this state so these updates are synchronized with the last event
+             * of this class append.
+             */
+            last_logged_client_utime = utime;
+            break;
+        }
+
+        /* Moved on to a new buffer. Reset the delta encoding
+         * state and retry. */
+        last_client_utime_segment = new_segment;
+        last_logged_client_utime = 0;
     }
+
 }
 
 /*
@@ -1079,9 +1084,6 @@ void log_client_text_message(uint32_t utimeh, uint32_t utimel, char *str, size_t
 
     uint64_t utime = ((uint64_t)utimeh << 32) | utimel;
 
-    /* Handle increases and decreases in time, in case the client has
-     * adjusted time, or in case of conflicting client times. */
-    int64_t utime_delta = utime - last_logged_client_utime;
 
     uint8_t *outbuf;
     outbuf = malloc(10 + 4 + str_len); // ??
@@ -1090,7 +1092,9 @@ void log_client_text_message(uint32_t utimeh, uint32_t utimel, char *str, size_t
     }
 
     while (1) {
-        /* Delta encoding */
+        /* Delta encoding. Handle increases and decreases in time, in case the
+         * client has adjusted time, or in case of conflicting client times. */
+        int64_t utime_delta = utime - last_logged_client_utime;
         uint32_t len = emit_leb128_signed(outbuf, 0, utime_delta);
         len = emit_leb128(outbuf, len, str_len);
         if (str_len) {
@@ -1101,8 +1105,15 @@ void log_client_text_message(uint32_t utimeh, uint32_t utimel, char *str, size_t
         uint32_t new_segment = dbuf_append(last_client_utime_segment,
                                            DBUF_EVENT_TEXT_MESSAGE,
                                            outbuf, len, 0);
-        if (new_segment == last_client_utime_segment)
+        if (new_segment == last_client_utime_segment) {
+            /*
+             * Commit the values logged. Note this is the only task accessing
+             * this state so these updates are synchronized with the last event
+             * of this class append.
+             */
+            last_logged_client_utime = utime;
             break;
+        }
 
         /* Moved on to a new buffer. Reset the delta encoding
          * state and retry. */
@@ -1111,13 +1122,6 @@ void log_client_text_message(uint32_t utimeh, uint32_t utimel, char *str, size_t
     }
 
     free(outbuf);
-
-    /*
-     * Commit the values logged. Note this is the only task
-     * accessing this state so these updates are synchronized with
-     * the last event of this class append.
-     */
-    last_logged_client_utime = utime;
 }
 
 
