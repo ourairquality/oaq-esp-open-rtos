@@ -291,14 +291,14 @@ static int handle_config(int s, wificfg_method method,
         if (pms_uart == 2 && wificfg_write_string_chunk(s, " selected", buf, len) < 0) return -1;
         if (wificfg_write_string_chunk(s, http_config_content[6], buf, len) < 0) return -1;
 
-        int8_t i2c_scl = 0;
+        int8_t i2c_scl = 5;
         sysparam_get_int8("oaq_i2c_scl", &i2c_scl);
         snprintf(buf, len, "%u", i2c_scl);
         if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
         if (wificfg_write_string_chunk(s, http_config_content[7], buf, len) < 0) return -1;
 
-        int8_t i2c_sda = 2;
+        int8_t i2c_sda = 4;
         sysparam_get_int8("oaq_i2c_sda", &i2c_sda);
         snprintf(buf, len, "%u", i2c_sda);
         if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
@@ -312,7 +312,7 @@ static int handle_config(int s, wificfg_method method,
 
         if (wificfg_write_string_chunk(s, http_config_content[9], buf, len) < 0) return -1;
 
-        int8_t logging = 0;
+        int8_t logging = 1;
         sysparam_get_int8("oaq_logging", &logging);
         if (logging && wificfg_write_string_chunk(s, "checked", buf, len) < 0) return -1;
         if (wificfg_write_string_chunk(s, http_config_content[10], buf, len) < 0) return -1;

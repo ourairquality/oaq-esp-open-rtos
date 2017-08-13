@@ -51,7 +51,7 @@ void init_params()
     param_pms_uart = 2;
     param_i2c_scl = 5;
     param_i2c_sda = 4;
-    param_logging = 0;
+    param_logging = 1;
     param_web_server = NULL;
     bzero(param_web_port, sizeof(param_web_port));
     param_web_path = NULL;
