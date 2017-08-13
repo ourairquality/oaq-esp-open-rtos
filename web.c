@@ -74,8 +74,28 @@ static int handle_index(int s, wificfg_method method,
     
     if (method != HTTP_METHOD_HEAD) {
         if (wificfg_write_string_chunk(s, http_index_content[0], buf, len) < 0) return -1;
+        if (wificfg_write_html_title(s, buf, len, "Home") < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_index_content[1], buf, len) < 0) return -1;
 
         if (wificfg_write_string_chunk(s, "<dl class=\"dlh\">", buf, len) < 0) return -1;
+
+        {
+            char *hostname = NULL;
+            sysparam_get_string("hostname", &hostname);
+            if (!hostname) {
+                sysparam_get_string("wifi_ap_ssid", &hostname);
+            }
+            if (hostname) {
+                if (wificfg_write_string_chunk(s, "<dt>Name</dt><dd>", buf, len) < 0) {
+                    free(hostname);
+                    return -1;
+                }
+                wificfg_html_escape(hostname, buf, len);
+                free(hostname);
+                if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
+                if (wificfg_write_string_chunk(s, "</dd>", buf, len) < 0) return -1;
+            }
+        }
 
         int8_t logging = get_buffer_logging();
         if (logging) {
@@ -203,7 +223,7 @@ static int handle_index(int s, wificfg_method method,
 
         if (wificfg_write_string_chunk(s, "</dl>", buf, len) < 0) return -1;
 
-        if (wificfg_write_string_chunk(s, http_index_content[1], buf, len) < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_index_content[2], buf, len) < 0) return -1;
 
         if (wificfg_write_chunk_end(s) < 0) return -1;
     }
@@ -272,50 +292,52 @@ static int handle_config(int s, wificfg_method method,
 
     if (method != HTTP_METHOD_HEAD) {
         if (wificfg_write_string_chunk(s, http_config_content[0], buf, len) < 0) return -1;
+        if (wificfg_write_html_title(s, buf, len, "Sensor config") < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_config_content[1], buf, len) < 0) return -1;
 
         int8_t leds = 1; /* Nodemcu */
         sysparam_get_int8("oaq_leds", &leds);
         if (leds == 0 && wificfg_write_string_chunk(s, " selected", buf, len) < 0) return -1;
-        if (wificfg_write_string_chunk(s, http_config_content[1], buf, len) < 0) return -1;
-        if (leds == 1 && wificfg_write_string_chunk(s, " selected", buf, len) < 0) return -1;
         if (wificfg_write_string_chunk(s, http_config_content[2], buf, len) < 0) return -1;
-        if (leds == 2 && wificfg_write_string_chunk(s, " selected", buf, len) < 0) return -1;
+        if (leds == 1 && wificfg_write_string_chunk(s, " selected", buf, len) < 0) return -1;
         if (wificfg_write_string_chunk(s, http_config_content[3], buf, len) < 0) return -1;
+        if (leds == 2 && wificfg_write_string_chunk(s, " selected", buf, len) < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_config_content[4], buf, len) < 0) return -1;
 
         int8_t pms_uart = 2; /* Enabled, RX */
         sysparam_get_int8("oaq_pms_uart", &pms_uart);
         if (pms_uart == 0 && wificfg_write_string_chunk(s, " selected", buf, len) < 0) return -1;
-        if (wificfg_write_string_chunk(s, http_config_content[4], buf, len) < 0) return -1;
-        if (pms_uart == 1 && wificfg_write_string_chunk(s, " selected", buf, len) < 0) return -1;
         if (wificfg_write_string_chunk(s, http_config_content[5], buf, len) < 0) return -1;
-        if (pms_uart == 2 && wificfg_write_string_chunk(s, " selected", buf, len) < 0) return -1;
+        if (pms_uart == 1 && wificfg_write_string_chunk(s, " selected", buf, len) < 0) return -1;
         if (wificfg_write_string_chunk(s, http_config_content[6], buf, len) < 0) return -1;
+        if (pms_uart == 2 && wificfg_write_string_chunk(s, " selected", buf, len) < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_config_content[7], buf, len) < 0) return -1;
 
         int8_t i2c_scl = 5;
         sysparam_get_int8("oaq_i2c_scl", &i2c_scl);
         snprintf(buf, len, "%u", i2c_scl);
         if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
-        if (wificfg_write_string_chunk(s, http_config_content[7], buf, len) < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_config_content[8], buf, len) < 0) return -1;
 
         int8_t i2c_sda = 4;
         sysparam_get_int8("oaq_i2c_sda", &i2c_sda);
         snprintf(buf, len, "%u", i2c_sda);
         if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
-        if (wificfg_write_string_chunk(s, http_config_content[8], buf, len) < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_config_content[9], buf, len) < 0) return -1;
 
         int8_t tz = 0;
         sysparam_get_int8("oaq_tz", &tz);
         snprintf(buf, len, "%d", tz);
         if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
-        if (wificfg_write_string_chunk(s, http_config_content[9], buf, len) < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_config_content[10], buf, len) < 0) return -1;
 
         int8_t logging = 1;
         sysparam_get_int8("oaq_logging", &logging);
         if (logging && wificfg_write_string_chunk(s, "checked", buf, len) < 0) return -1;
-        if (wificfg_write_string_chunk(s, http_config_content[10], buf, len) < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_config_content[11], buf, len) < 0) return -1;
 
         char *web_server = NULL;
         sysparam_get_string("oaq_web_server", &web_server);
@@ -325,14 +347,14 @@ static int handle_config(int s, wificfg_method method,
             if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
         }
 
-        if (wificfg_write_string_chunk(s, http_config_content[11], buf, len) < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_config_content[12], buf, len) < 0) return -1;
 
         int32_t web_port = 80;
         sysparam_get_int32("oaq_web_port", &web_port);
         snprintf(buf, len, "%u", web_port);
         if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
-        if (wificfg_write_string_chunk(s, http_config_content[12], buf, len) < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_config_content[13], buf, len) < 0) return -1;
 
         char *web_path = NULL;
         sysparam_get_string("oaq_web_path", &web_path);
@@ -344,7 +366,7 @@ static int handle_config(int s, wificfg_method method,
         }
         if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
-        if (wificfg_write_string_chunk(s, http_config_content[13], buf, len) < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_config_content[14], buf, len) < 0) return -1;
 
         int32_t sensor_id = 0;
         if (sysparam_get_int32("oaq_sensor_id", &sensor_id) == SYSPARAM_OK) {
@@ -352,7 +374,7 @@ static int handle_config(int s, wificfg_method method,
             if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
         }
 
-        if (wificfg_write_string_chunk(s, http_config_content[14], buf, len) < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_config_content[15], buf, len) < 0) return -1;
 
         uint8_t *sha3_key = NULL;
         size_t actual_length;
@@ -366,7 +388,7 @@ static int handle_config(int s, wificfg_method method,
             }
         }
 
-        if (wificfg_write_string_chunk(s, http_config_content[15], buf, len) < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_config_content[16], buf, len) < 0) return -1;
 
         struct tm time;
         xSemaphoreTake(i2c_sem, portMAX_DELAY);
@@ -379,43 +401,43 @@ static int handle_config(int s, wificfg_method method,
             clock_time -= tz * 60 * 60;
             gmtime_r(&clock_time, &time);
 
-            if (wificfg_write_string_chunk(s, http_config_content[16], buf, len) < 0) return -1;
+            if (wificfg_write_string_chunk(s, http_config_content[17], buf, len) < 0) return -1;
 
             snprintf(buf, len, "%u", time.tm_year + 1900);
             if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
-            if (wificfg_write_string_chunk(s, http_config_content[17], buf, len) < 0) return -1;
+            if (wificfg_write_string_chunk(s, http_config_content[18], buf, len) < 0) return -1;
 
             snprintf(buf, len, "%u", time.tm_mon + 1);
             if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
-            if (wificfg_write_string_chunk(s, http_config_content[18], buf, len) < 0) return -1;
+            if (wificfg_write_string_chunk(s, http_config_content[19], buf, len) < 0) return -1;
 
             snprintf(buf, len, "%u", time.tm_mday);
             if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
-            if (wificfg_write_string_chunk(s, http_config_content[19], buf, len) < 0) return -1;
+            if (wificfg_write_string_chunk(s, http_config_content[20], buf, len) < 0) return -1;
 
             snprintf(buf, len, "%u", time.tm_hour);
             if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
-            if (wificfg_write_string_chunk(s, http_config_content[20], buf, len) < 0) return -1;
+            if (wificfg_write_string_chunk(s, http_config_content[21], buf, len) < 0) return -1;
 
             snprintf(buf, len, "%u", time.tm_min);
             if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
-            if (wificfg_write_string_chunk(s, http_config_content[21], buf, len) < 0) return -1;
+            if (wificfg_write_string_chunk(s, http_config_content[22], buf, len) < 0) return -1;
 
             snprintf(buf, len, "%u", time.tm_sec);
             if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
-            if (wificfg_write_string_chunk(s, http_config_content[22], buf, len) < 0) return -1;
+            if (wificfg_write_string_chunk(s, http_config_content[23], buf, len) < 0) return -1;
         }
 
         /* Erase flash */
-        if (wificfg_write_string_chunk(s, http_config_content[23], buf, len) < 0) return -1;
-
         if (wificfg_write_string_chunk(s, http_config_content[24], buf, len) < 0) return -1;
+
+        if (wificfg_write_string_chunk(s, http_config_content[25], buf, len) < 0) return -1;
 
         if (wificfg_write_chunk_end(s) < 0) return -1;
     }
@@ -1011,6 +1033,8 @@ static int handle_plot(int s, wificfg_method method,
 
     if (method != HTTP_METHOD_HEAD) {
         if (wificfg_write_string_chunk(s, http_plot_content[0], buf, len) < 0) return -1;
+        if (wificfg_write_html_title(s, buf, len, "Plot") < 0) return -1;
+        if (wificfg_write_string_chunk(s, http_plot_content[1], buf, len) < 0) return -1;
 
         if (wificfg_write_chunk_end(s) < 0) return -1;
     }
@@ -1642,6 +1666,7 @@ void init_web()
     /* Override the wificfg default AP name and password. */
     wificfg_default_ssid = "OAQ_%02X%02X%02X";
     wificfg_default_password = "oaqwifipw";
+    wificfg_default_hostname = "oaq-%02x%02x%02x";
 
     sdk_wifi_set_sleep_type(WIFI_SLEEP_MODEM);
 
