@@ -809,8 +809,8 @@ static int handle_config_post(int s, wificfg_method method,
     }
 
     if (done) {
+        /* Just change the 'startup' flag, not the running state. */
         sysparam_set_int8("oaq_logging", logging);
-        set_buffer_logging(logging);
     }
 
     return wificfg_write_string(s, http_config_redirect_header);
