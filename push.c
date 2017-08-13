@@ -43,6 +43,8 @@
 
 #include "config.h"
 
+#include "wificfg/wificfg.h"
+
 
 /* For signaling and waiting for data to post. */
 TaskHandle_t post_data_task = NULL;
@@ -130,6 +132,12 @@ static void post_data(void *pvParameters)
                     break;
                 vTaskDelay(1000 / portTICK_PERIOD_MS);
             }
+
+            /*
+             * Notifty wificfg to disable the AP interface on the next restart
+             * if that option is enabled.
+             */
+            wificfg_got_sta_connect();
 
             const struct addrinfo hints = {
                 .ai_family = AF_INET,
