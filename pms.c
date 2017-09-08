@@ -392,6 +392,6 @@ void init_pms()
             sdk_system_uart_swap();
         }
         uart_set_baud(0, 9600);
-        xTaskCreate(&pms_read_task, "PMS reader", 272, NULL, 3, NULL);
+        xTaskCreate(&pms_read_task, "PMS reader", 272, NULL, 11, NULL);
     }
 }

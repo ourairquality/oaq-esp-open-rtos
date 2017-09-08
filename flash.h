@@ -29,6 +29,6 @@ void flash_data(void *pvParameters);
 
 extern TaskHandle_t flash_data_task;
 
-uint32_t get_buffer_size(uint32_t requested_index, uint32_t *index, bool *sealed, bool *headp);
+uint32_t get_buffer_size(uint32_t requested_index, uint32_t *index, uint32_t *next_index, bool *sealed);
 bool get_buffer_range(uint32_t index, uint32_t start, uint32_t end, uint8_t *buf);
 bool erase_flash_data(void);

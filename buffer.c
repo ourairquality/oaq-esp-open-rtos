@@ -655,5 +655,5 @@ void user_init(void)
     init_web();
     init_post();
 
-    xTaskCreate(&flash_data, "OAQ Flash", 196, NULL, 2, &flash_data_task);
+    xTaskCreate(&flash_data, "OAQ Flash", 196, NULL, 11, &flash_data_task);
 }

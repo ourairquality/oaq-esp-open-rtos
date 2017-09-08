@@ -92,13 +92,13 @@ static void post_data(void *pvParameters)
      * Can not flag every index that has been sent and how much, so do a scan
      * and keep the head state: the index currently being pushed or last pushed,
      * the total size of that index, and the amount that has been push, and flag
-     * if it was know to have been sealed and not open to being extended.
+     * if it was known to have been sealed and not open to being extended.
      */
     uint32_t index_being_pushed = 0;
     uint32_t index_size_being_pushed = 0;
     uint32_t index_size_pushed = 0;
     bool index_being_pushed_sealed = false;
-    bool index_being_pushed_headp = false;
+    uint32_t index_being_pushed_next_index = 0xffffffff;
 
     while (1) {
         xTaskNotifyWait(0, 0, NULL, 120000 / portTICK_PERIOD_MS);
@@ -203,7 +203,7 @@ static void post_data(void *pvParameters)
                     index_size_being_pushed = 0;
                     index_size_pushed = 0;
                     index_being_pushed_sealed = false;
-                    index_being_pushed_headp = false;
+                    index_being_pushed_next_index = 0xffffffff;
                     size = 0;
                     break;
                 }
@@ -221,7 +221,7 @@ static void post_data(void *pvParameters)
                         index_size_being_pushed = 0;
                         index_size_pushed = 0;
                         index_being_pushed_sealed = false;
-                        index_being_pushed_headp = false;
+                        index_being_pushed_next_index = 0xffffffff;
                         size = 0;
                     }
                     break;
@@ -231,15 +231,14 @@ static void post_data(void *pvParameters)
                 uint32_t last_index = index_being_pushed;
                 index_size_being_pushed = get_buffer_size(index_being_pushed,
                                                           &index_being_pushed,
-                                                          &index_being_pushed_sealed,
-                                                          &index_being_pushed_headp);
+                                                          &index_being_pushed_next_index,
+                                                          &index_being_pushed_sealed);
 
                 if (index_being_pushed != last_index) {
                     /* The index being pushed was not found. This might occur if
                      * the buffer wraps and erases the sector, but this is
-                     * unlikely. It might also occur if search for an index
-                     * beyound the head. Push the index found, from the
-                     * start. */
+                     * unlikely. It might also occur if searching for an index
+                     * beyond the head. Push the index found, from the start. */
                     index_size_pushed = 0;
                 }
 
@@ -261,19 +260,21 @@ static void post_data(void *pvParameters)
                     index_size_being_pushed = 0;
                     index_size_pushed = 0;
                     index_being_pushed_sealed = false;
+                    index_being_pushed_next_index = 0xffffffff;
                     continue;
                 }
 
                 if (index_size_being_pushed == index_size_pushed) {
                     /* Nothing more to send for this index */
                     size = 0;
-                    if (index_being_pushed_sealed && !index_being_pushed_headp) {
+                    if (index_being_pushed_sealed &&
+                        index_being_pushed_next_index != 0xffffffff) {
                         /* Move on to the next index and recheck. */
-                        index_being_pushed++;
+                        index_being_pushed = index_being_pushed_next_index;
                         index_size_being_pushed = 0;
                         index_size_pushed = 0;
                         index_being_pushed_sealed = false;
-                        index_being_pushed_headp = false;
+                        index_being_pushed_next_index = 0xffffffff;
                         continue;
                     }
                     /* No more data is available, wait. */
@@ -285,7 +286,7 @@ static void post_data(void *pvParameters)
                 index_size_being_pushed = 0;
                 index_size_pushed = 0;
                 index_being_pushed_sealed = false;
-                index_being_pushed_headp = false;
+                index_being_pushed_next_index = 0xffffffff;
                 size = 0;
                 break;
             } while (size == 0);
@@ -490,7 +491,7 @@ static void post_data(void *pvParameters)
                          */
                         if (recv_index != index_being_pushed) {
                             if (recv_index > index_being_pushed &&
-                                index_being_pushed_headp) {
+                                index_being_pushed_next_index == 0xffffffff) {
                                 /* Looks like a bad request from the server for
                                  * an index beyond those stored on the
                                  * device. Need to catch this or the device will
@@ -506,7 +507,7 @@ static void post_data(void *pvParameters)
                                 index_size_being_pushed = 0;
                                 index_size_pushed = 0;
                                 index_being_pushed_sealed = false;
-                                index_being_pushed_headp = false;
+                                index_being_pushed_next_index = 0xffffffff;
                             }
                         } else {
                             if (recv_size > index_size_being_pushed) {
@@ -548,6 +549,6 @@ void init_post()
         if (mode != STATION_MODE && mode != STATIONAP_MODE) {
             return;
         }
-        xTaskCreate(&post_data, "OAQ Post", 448, NULL, 1, &post_data_task);
+        xTaskCreate(&post_data, "OAQ Push", 448, NULL, 1, &post_data_task);
     }
 }

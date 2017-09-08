@@ -104,9 +104,9 @@ static int handle_index(int s, wificfg_method method,
             if (wificfg_write_string_chunk(s, "<dt>Logging is paused</dt><dd><form action=\"/logging.html\" method=\"post\"\"><button name=\"oaq_logging\" type=\"submit\" value=\"1\">Restart logging</button><input type=\"hidden\" name=\"done\"></form></dd>", buf, len) < 0) return -1;
         }
 
-        uint32_t index;
-        bool sealed, headp;
-        uint32_t size = get_buffer_size(0xffffffff, &index, &sealed, &headp);
+        uint32_t index, next_index;
+        bool sealed;
+        uint32_t size = get_buffer_size(0xffffffff, &index, &next_index, &sealed);
         snprintf(buf, len, "<dt>Flash sector</dt><dd>index %u, size %u</dd>", index, size);
         if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
 
@@ -1480,13 +1480,13 @@ static int handle_buffer_size_post(int s, wificfg_method method,
 
     log_client_utime(utimeh, utimel);
 
-    uint32_t index = 0;
-    bool sealed, headp;
-    uint32_t size = get_buffer_size(requested_index, &index, &sealed, &headp);
+    uint32_t index = 0, next_index = 0xffffffff;
+    bool sealed;
+    uint32_t size = get_buffer_size(requested_index, &index, &next_index, &sealed);
     if (wificfg_write_string(s, http_success_json_header) < 0) return -1;
     snprintf(buf, len, "{\"index\":%u,\"size\":%u", index, size);
     if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
-    snprintf(buf, len, ",\"sealed\":%u,\"headp\":%u}", sealed, headp);
+    snprintf(buf, len, ",\"next\":%u,\"sealed\":%u}", next_index, sealed);
     if (wificfg_write_string_chunk(s, buf, buf, len) < 0) return -1;
     if (wificfg_write_chunk_end(s) < 0) return -1;
     return 0;
@@ -1573,9 +1573,9 @@ static int handle_get_buffer_post(int s, wificfg_method method,
      * removed during the request then the response is truncated, and
      * the client is expected to notice such an error.
      */
-    uint32_t index = 0;
-    bool sealed, headp;
-    uint32_t size = get_buffer_size(requested_index, &index, &sealed, &headp);
+    uint32_t index = 0, next_index;
+    bool sealed;
+    uint32_t size = get_buffer_size(requested_index, &index, &next_index, &sealed);
 
     if (index != requested_index) {
         return wificfg_write_string(s, "HTTP/1.1 404 \r\n"
@@ -1593,29 +1593,10 @@ static int handle_get_buffer_post(int s, wificfg_method method,
     if (end < start)
         end = start;
 
-    uint32_t length = end - start;
+    ssize_t length = end - start;
     if (wificfg_write_string(s, http_success_binary_header) < 0) return -1;
     snprintf(buf, len, "Content-Length: %u\r\n\r\n", length);
     if (wificfg_write_string(s, buf) < 0) return -1;
-
-    /*
-     * Send the RTC time just before responding, the client might be able to use
-     * this to estimate the recent event times relative to the clients time.
-     */
-
-    uint32_t time = RTC.COUNTER;
-    buf[0] = time;
-    buf[1] = time >>  8;
-    buf[2] = time >> 16;
-    buf[3] = time >> 24;
-
-    if (length > 0) {
-        uint32_t chunk = 4 + length > len ? len - 4 : length;
-        if (!get_buffer_range(index, start, start + chunk, 4 + (uint8_t *)buf)) return -1;
-        if (write(s, buf, 4 + chunk) < 0) return -1;
-        start += chunk;
-        length -= chunk;
-    }
 
     while (length > 0) {
         uint32_t chunk = length > len ? len : length;

@@ -164,14 +164,15 @@ static int flash_sector_erased(uint16_t sector)
     uint32_t addr = sector * 4096;
     int i;
 
-    for (i = 0; i < 4096; i += 4) {
-        uint32_t data[1];
+    for (i = 0; i < 4096; i += 16) {
+        uint32_t data[4];
         sdk_SpiFlashOpResult res;
-        res = sdk_spi_flash_read(addr + i, data, 4);
+        res = sdk_spi_flash_read(addr + i, data, 16);
         if (res != SPI_FLASH_RESULT_OK) {
             return 0;
         }
-        if (data[0] != 0xffffffff) {
+        if (data[0] != 0xffffffff || data[1] != 0xffffffff ||
+            data[2] != 0xffffffff || data[3] != 0xffffffff) {
             return 0;
         }
     }
@@ -186,14 +187,15 @@ static int check_flash_sector(uint16_t sector, uint32_t *buf)
     uint32_t addr = sector * 4096;
     int i;
 
-    for (i = 0; i < 4096; i += 4, buf++) {
-        uint32_t data[1];
+    for (i = 0; i < 4096; i += 16, buf += 4) {
+        uint32_t data[4];
         sdk_SpiFlashOpResult res;
-        res = sdk_spi_flash_read(addr + i, data, 4);
+        res = sdk_spi_flash_read(addr + i, data, 16);
         if (res != SPI_FLASH_RESULT_OK) {
             return 0;
         }
-        if (data[0] != buf[0]) {
+        if (data[0] != buf[0] || data[1] != buf[1] ||
+            data[2] != buf[2] || data[3] != buf[3]) {
             return 0;
         }
     }
@@ -230,7 +232,7 @@ static void handle_flash_write_failure()
 /* A flag to note if new data might be available to help avoid a full check each
  * time. Set when new data is written and cleared when no data to post is
  * found. */
-static uint32_t maybe_flash_to_post = 1;
+static volatile uint32_t maybe_flash_to_post = 1;
 
 void flash_data(void *pvParameters)
 {
@@ -251,10 +253,11 @@ void flash_data(void *pvParameters)
         while (1) {
             uint32_t start;
             uint32_t size = get_buffer_to_write(flash_buf, &start);
-            uint32_t index = flash_buf[0] | flash_buf[1] << 8 | flash_buf[2] << 16 | flash_buf[3] << 24 ;
 
             if (size == 0)
                 break;
+
+            uint32_t index = flash_buf[0] | flash_buf[1] << 8 | flash_buf[2] << 16 | flash_buf[3] << 24 ;
 
             xSemaphoreTake(flash_state_sem, portMAX_DELAY);
 
@@ -319,7 +322,7 @@ void flash_data(void *pvParameters)
                 if (res != SPI_FLASH_RESULT_OK ||
                     !check_flash_sector(flash_sector, (uint32_t *)flash_buf)) {
                     handle_flash_write_failure();
-                    if (++retries > 32) {
+                    if (++retries > 8) {
                         /* Give up, consider it written. */
                         break;
                     }
@@ -380,19 +383,27 @@ void clear_maybe_buffer_to_post()
  *
  * The first sector with an index is the head. It is useful to know if a
  * returned index is the head, to know if it can be advanced to find more data.
+ *
+ * The next_index helps stepping forward because there might be gaps in the
+ * index sequence and otherwise it would take some more iteration to find the
+ * next in the sequence. If there is no next_index then 0xffffffff is returned -
+ * the search for the next index should start from there as there might be a gap.
  */
-uint32_t get_buffer_size(uint32_t requested_index, uint32_t *index, bool *sealed, bool *headp)
+uint32_t get_buffer_size(uint32_t requested_index, uint32_t *index, uint32_t *next_index, bool *sealed)
 {
     xSemaphoreTake(flash_state_sem, portMAX_DELAY);
 
     /* Low sectors hold code and not data, so zero can represent invalid. */
     uint32_t last_sector = 0;
-    uint32_t head_sector = 0;
+    /* The index of the last_sector. */
+    uint32_t last_index = 0xffffffff;
+
+    *next_index = 0xffffffff;
 
     if (flash_sector_initialized) {
         if (decode_flash_sector_index(flash_sector, index)) {
             last_sector = flash_sector;
-            head_sector = flash_sector;
+            last_index = *index;
             if (*index <= requested_index) {
                 sdk_SpiFlashOpResult res;
                 res = sdk_spi_flash_read(flash_sector * 4096, (uint32_t *)flash_buf, 4096);
@@ -403,7 +414,6 @@ uint32_t get_buffer_size(uint32_t requested_index, uint32_t *index, bool *sealed
                             break;
                     }
                     *sealed = false;
-                    *headp = true;
                     xSemaphoreGive(flash_state_sem);
                     return size;
                 }
@@ -419,11 +429,11 @@ uint32_t get_buffer_size(uint32_t requested_index, uint32_t *index, bool *sealed
     }
 
     while (1) {
-        if (decode_flash_sector_index(sector, index)) {
-            last_sector = sector;
-            if (!head_sector) {
-                head_sector = sector;
-            }
+        if (decode_flash_sector_index(sector, index) &&
+            /* Skip if the index increases (an error), or if this is not the
+             * most recent write for this index which might occur if a flash
+             * write failed and the sector was re-written. */
+            *index < last_index) {
             if (*index <= requested_index) {
                 sdk_SpiFlashOpResult res;
                 memset(flash_buf, 0xa5, 4096);
@@ -434,15 +444,24 @@ uint32_t get_buffer_size(uint32_t requested_index, uint32_t *index, bool *sealed
                         if (flash_buf[size - 1] != 0xff)
                             break;
                     }
+                    *next_index = last_index;
                     *sealed = (sector != flash_sector);
-                    *headp = (sector == head_sector);
                     xSemaphoreGive(flash_state_sem);
                     return size;
                 }
+                /* TODO a flash read failure above is not handled well, it would
+                 * be better to skip this index rather than just moving on to
+                 * the next sector which might have the same index and thus be a
+                 * bad write. At least this skips noting it as a valid
+                 * last_sector. */
+            } else {
+                /* This must be the first time this index number has been found
+                 * so note this sector as it will be used if nothing else is
+                 * found. */
+                *next_index = last_index;
+                last_sector = sector;
+                last_index = *index;
             }
-            /* Could decode an index, but it was not a match, so from here on
-             * this is not the head index. */
-            *headp = false;
         }
         sector--;
         if (sector < BUFFER_FLASH_FIRST_SECTOR) {
@@ -456,20 +475,18 @@ uint32_t get_buffer_size(uint32_t requested_index, uint32_t *index, bool *sealed
 
     if (last_sector != 0) {
         /* Found something, so return it and it's size. */
-        if (decode_flash_sector_index(last_sector, index)) {
-            sdk_SpiFlashOpResult res;
-            res = sdk_spi_flash_read(last_sector * 4096, (uint32_t *)flash_buf, 4096);
-            if (res == SPI_FLASH_RESULT_OK) {
-                uint32_t size = 0;
-                for (size = 4096; size > 0; size--) {
-                    if (flash_buf[size - 1] != 0xff)
-                        break;
-                }
-                *sealed = (last_sector != flash_sector);
-                *headp = (sector == head_sector);
-                xSemaphoreGive(flash_state_sem);
-                return size;
+        sdk_SpiFlashOpResult res;
+        res = sdk_spi_flash_read(last_sector * 4096, (uint32_t *)flash_buf, 4096);
+        if (res == SPI_FLASH_RESULT_OK) {
+            uint32_t size = 0;
+            for (size = 4096; size > 0; size--) {
+                if (flash_buf[size - 1] != 0xff)
+                    break;
             }
+            *index = last_index;
+            *sealed = (last_sector != flash_sector);
+            xSemaphoreGive(flash_state_sem);
+            return size;
         }
     }
 
@@ -477,7 +494,6 @@ uint32_t get_buffer_size(uint32_t requested_index, uint32_t *index, bool *sealed
 
     *index = 0;
     *sealed = false;
-    *headp = true;
     return 0;
 }
 
@@ -489,19 +505,39 @@ uint32_t get_buffer_size(uint32_t requested_index, uint32_t *index, bool *sealed
  * such a failure and less than the length probe at the start of the response,
  * the http response will send a response with a content-length and the client
  * can detect the truncated response.
+ *
+ * The sector that the last request used is cached, so avoid a search if the
+ * index has not changed.
  */
+static uint32_t last_get_buffer_range_sector = 0;
+static uint32_t last_get_buffer_range_index = 0xffffffff;
 bool get_buffer_range(uint32_t index, uint32_t start, uint32_t end, uint8_t *buf)
 {
+    uint32_t i;
+
     xSemaphoreTake(flash_state_sem, portMAX_DELAY);
 
+    if (last_get_buffer_range_sector && index == last_get_buffer_range_index) {
+        sdk_SpiFlashOpResult res;
+        res = sdk_spi_flash_read(last_get_buffer_range_sector * 4096,
+                                 (uint32_t *)flash_buf, 4096);
+        if (res == SPI_FLASH_RESULT_OK) {
+            for (i = 0; i < end - start; i++)
+                buf[i] = flash_buf[start + i];
+            xSemaphoreGive(flash_state_sem);
+            return true;
+        }
+    }
+
     if (flash_sector_initialized) {
-        uint32_t i;
         if (decode_flash_sector_index(flash_sector, &i) && i == index) {
             sdk_SpiFlashOpResult res;
             res = sdk_spi_flash_read(flash_sector * 4096, (uint32_t *)flash_buf, 4096);
             if (res == SPI_FLASH_RESULT_OK) {
                 for (i = 0; i < end - start; i++)
                     buf[i] = flash_buf[start + i];
+                last_get_buffer_range_sector = flash_sector;
+                last_get_buffer_range_index = index;
                 xSemaphoreGive(flash_state_sem);
                 return true;
             }
@@ -516,13 +552,14 @@ bool get_buffer_range(uint32_t index, uint32_t start, uint32_t end, uint8_t *buf
     }
 
     while (1) {
-        uint32_t i;
         if (decode_flash_sector_index(sector, &i) && i == index) {
             sdk_SpiFlashOpResult res;
             res = sdk_spi_flash_read(sector * 4096, (uint32_t *)flash_buf, 4096);
             if (res == SPI_FLASH_RESULT_OK) {
                 for (i = 0; i < end - start; i++)
                     buf[i] = flash_buf[start + i];
+                last_get_buffer_range_sector = sector;
+                last_get_buffer_range_index = index;
                 xSemaphoreGive(flash_state_sem);
                 return true;
             }
@@ -537,6 +574,9 @@ bool get_buffer_range(uint32_t index, uint32_t start, uint32_t end, uint8_t *buf
         }
     }
 
+    last_get_buffer_range_sector = 0;
+    last_get_buffer_range_index = 0xffffffff;
+    xSemaphoreGive(flash_state_sem);
     return false;
 }
 
@@ -573,7 +613,10 @@ bool erase_flash_data() {
     flash_sector = BUFFER_FLASH_FIRST_SECTOR;
     flash_sector_initialized = 0;
     maybe_flash_to_post = 0;
-    // TODO rest the push task.
+    last_get_buffer_range_sector = 0;
+    last_get_buffer_range_index = 0xffffffff;
+
+    // TODO reset the push task.
 
     xSemaphoreGive(flash_state_sem);
     set_buffer_logging(logging);
