@@ -66,8 +66,8 @@ I2C pins:
 
 | PCB name | Function |
 | -------- | -------- |
-| D3 | SCL |
-| D4 | SDA |
+| D1 | SCL |
+| D2 | SDA |
 | 3V3 | +V |
 | G | Ground |
 
@@ -86,8 +86,8 @@ I2C pins:
 
 | PCB name | Function |
 | -------- | -------- |
-| GPIO0 | SCL |
-| GPIO2 | SDA |
+| GPIO5 | SCL |
+| GPIO4 | SDA |
 | VCC | +V |
 | G | Ground |
 
