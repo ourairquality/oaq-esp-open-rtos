@@ -19,6 +19,8 @@
  *
  */
 
+#define I2C_BUS 0
+
 extern SemaphoreHandle_t i2c_sem;
 
 void init_i2c();

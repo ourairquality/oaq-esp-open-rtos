@@ -37,6 +37,6 @@ SemaphoreHandle_t i2c_sem;
 
 void init_i2c()
 {
-    i2c_init(param_i2c_scl, param_i2c_sda);
+    i2c_init(I2C_BUS, param_i2c_scl, param_i2c_sda, I2C_FREQ_100K);
     i2c_sem = xSemaphoreCreateMutex();
 }

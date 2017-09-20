@@ -392,7 +392,7 @@ static int handle_config(int s, wificfg_method method,
 
         struct tm time;
         xSemaphoreTake(i2c_sem, portMAX_DELAY);
-        bool ds3231_available = ds3231_getTime(&time);
+        bool ds3231_available = ds3231_getTime(&ds3231_dev, &time);
         xSemaphoreGive(i2c_sem);
 
         if (ds3231_available) {
@@ -837,7 +837,7 @@ static int handle_time_post(int s, wificfg_method method,
 
     struct tm time;
     xSemaphoreTake(i2c_sem, portMAX_DELAY);
-    bool ds3231_available = ds3231_getTime(&time);
+    bool ds3231_available = ds3231_getTime(&ds3231_dev, &time);
     xSemaphoreGive(i2c_sem);
 
     while (rem > 0) {
@@ -939,7 +939,7 @@ static int handle_time_post(int s, wificfg_method method,
                     clock_time = utime;
                     gmtime_r(&clock_time, &time);
                     xSemaphoreTake(i2c_sem, portMAX_DELAY);
-                    ds3231_setTime(&time);
+                    ds3231_setTime(&ds3231_dev, &time);
                     xSemaphoreGive(i2c_sem);
                     if (tz >= -12 && tz <= 12) {
                         sysparam_set_int8("oaq_tz", tz);
@@ -954,7 +954,7 @@ static int handle_time_post(int s, wificfg_method method,
             gmtime_r(&clock_time, &time);
 
             xSemaphoreTake(i2c_sem, portMAX_DELAY);
-            ds3231_setTime(&time);
+            ds3231_setTime(&ds3231_dev, &time);
             xSemaphoreGive(i2c_sem);
         }
     }

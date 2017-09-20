@@ -20,6 +20,9 @@
  */
 
 #include <time.h>
+#include "i2c/i2c.h"
+
+extern i2c_dev_t ds3231_dev;
 
 void ds3231_note_time(time_t time);
 void init_ds3231();

@@ -43,6 +43,12 @@
 
 
 
+i2c_dev_t ds3231_dev = {
+    .addr = DS3231_ADDR,
+    .bus = I2C_BUS,
+};
+
+
 /*
  * Handle a time in a response from a server.
  */
@@ -52,7 +58,7 @@ void ds3231_note_time(time_t recv_time)
 
     xSemaphoreTake(i2c_sem, portMAX_DELAY);
 
-    bool ds3231_available = ds3231_getTime(&tm);
+    bool ds3231_available = ds3231_getTime(&ds3231_dev, &tm);
     if (ds3231_available) {
         time_t clock_time = mktime(&tm);
         /*
@@ -69,7 +75,7 @@ void ds3231_note_time(time_t recv_time)
          */
         if (clock_time < recv_time || clock_time > recv_time + 4) {
             gmtime_r(&recv_time, &tm);
-            if (ds3231_setTime(&tm)) {
+            if (ds3231_setTime(&ds3231_dev, &tm)) {
                 /*
                  * Log all steps in the clock time.
                  */
@@ -130,7 +136,7 @@ static void ds3231_read_task(void *pvParameters)
     bzero(&ds3231_time, sizeof(ds3231_time));
 
     struct tm time;
-    bool available = ds3231_getTime(&time);
+    bool available = ds3231_getTime(&ds3231_dev, &time);
 
     xSemaphoreGive(i2c_sem);
     
@@ -142,7 +148,7 @@ static void ds3231_read_task(void *pvParameters)
 
         xSemaphoreTake(i2c_sem, portMAX_DELAY);
 
-        if (!ds3231_getTime(&time)) {
+        if (!ds3231_getTime(&ds3231_dev, &time)) {
             xSemaphoreGive(i2c_sem);
             blink_red();
             continue;
@@ -150,7 +156,7 @@ static void ds3231_read_task(void *pvParameters)
 
         time_t clock_time = mktime(&time);
         int16_t temperature;
-        if (!ds3231_getRawTemp(&temperature)) {
+        if (!ds3231_getRawTemp(&ds3231_dev, &temperature)) {
             xSemaphoreGive(i2c_sem);
             blink_red();
             continue;

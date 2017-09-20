@@ -41,6 +41,11 @@
 
 
 
+static i2c_dev_t bmp180_dev = {
+    .addr = BMP180_DEVICE_ADDRESS,
+    .bus = I2C_BUS,
+};
+
 static bool bmp180_available = false;
 static uint32_t bmp180_counter = 0;
 static int32_t bmp180_temperature = 0;
@@ -69,8 +74,8 @@ static void bmp180_read_task(void *pvParameters)
 
     xSemaphoreTake(i2c_sem, portMAX_DELAY);
     bmp180_constants_t constants;
-    bool available = bmp180_is_available() &&
-        bmp180_fillInternalConstants(&constants);
+    bool available = bmp180_is_available(&bmp180_dev) &&
+        bmp180_fillInternalConstants(&bmp180_dev, &constants);
     xSemaphoreGive(i2c_sem);
 
     if (!available)
@@ -83,7 +88,7 @@ static void bmp180_read_task(void *pvParameters)
 
         int32_t temperature;
         uint32_t pressure;
-        if (!bmp180_measure(&constants, &temperature, &pressure, 3)) {
+        if (!bmp180_measure(&bmp180_dev, &constants, &temperature, &pressure, 3)) {
             xSemaphoreGive(i2c_sem);
             blink_red();
             continue;

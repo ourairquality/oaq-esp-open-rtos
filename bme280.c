@@ -82,7 +82,8 @@ static void bme280_read_task(void *pvParameters)
     bme280_params.standby = BMP280_STANDBY_250;
 
     bmp280_t bme280_dev;
-    bme280_dev.i2c_addr = BMP280_I2C_ADDRESS_0;
+    bme280_dev.i2c_dev.bus = I2C_BUS;
+    bme280_dev.i2c_dev.addr = BMP280_I2C_ADDRESS_0;
     bool available = bmp280_init(&bme280_dev, &bme280_params);
     xSemaphoreGive(i2c_sem);
 

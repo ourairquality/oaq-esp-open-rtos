@@ -92,44 +92,44 @@ static bool sht2x_check_crc(uint8_t data[], uint8_t num_bytes, uint8_t checksum)
 
 static bool sht2x_read_user_register(uint8_t *value)
 {
-    i2c_start();
+    i2c_start(I2C_BUS);
 
-    if (!i2c_write(I2C_ADR_W) || !i2c_write(USER_REG_R)) {
-        i2c_stop();
+    if (!i2c_write(I2C_BUS, I2C_ADR_W) || !i2c_write(I2C_BUS, USER_REG_R)) {
+        i2c_stop(I2C_BUS);
         return false;
     }
 
-    i2c_start();
+    i2c_start(I2C_BUS);
 
-    if (!i2c_write(I2C_ADR_R)) {
-        i2c_stop();
+    if (!i2c_write(I2C_BUS, I2C_ADR_R)) {
+        i2c_stop(I2C_BUS);
         return false;
     }
 
-    *value = i2c_read(0);
-    uint8_t crc = i2c_read(1);
-    i2c_stop();
+    *value = i2c_read(I2C_BUS, 0);
+    uint8_t crc = i2c_read(I2C_BUS, 1);
+    i2c_stop(I2C_BUS);
     return sht2x_check_crc(value, 1, crc);
 }
 
 static bool sht2x_write_user_register(uint8_t value)
 {
-    i2c_start();
+    i2c_start(I2C_BUS);
 
-    bool result = i2c_write(I2C_ADR_W) &&
-        i2c_write(USER_REG_W) &&
-        i2c_write(value);
+    bool result = i2c_write(I2C_BUS, I2C_ADR_W) &&
+        i2c_write(I2C_BUS, USER_REG_W) &&
+        i2c_write(I2C_BUS, value);
 
-    i2c_stop();
+    i2c_stop(I2C_BUS);
     return result;
 }
 
 static bool sht2x_soft_reset()
 {
-    i2c_start();
+    i2c_start(I2C_BUS);
 
-    bool result = i2c_write(I2C_ADR_W) && i2c_write(SOFT_RESET);
-    i2c_stop();
+    bool result = i2c_write(I2C_BUS, I2C_ADR_W) && i2c_write(I2C_BUS, SOFT_RESET);
+    i2c_stop(I2C_BUS);
     /* Wait until sensor restarted. */
     sdk_os_delay_us(15000);
 
@@ -138,55 +138,55 @@ static bool sht2x_soft_reset()
 
 static bool sht2x_get_serial_number(uint8_t *serial_number)
 {
-    i2c_start();
-    if (!i2c_write(I2C_ADR_W) ||
-        !i2c_write(0xFA) ||
-        !i2c_write(0x0F))
+    i2c_start(I2C_BUS);
+    if (!i2c_write(I2C_BUS, I2C_ADR_W) ||
+        !i2c_write(I2C_BUS, 0xFA) ||
+        !i2c_write(I2C_BUS, 0x0F))
         goto fail;
-    i2c_start();
-    if (!i2c_write(I2C_ADR_R))
+    i2c_start(I2C_BUS);
+    if (!i2c_write(I2C_BUS, I2C_ADR_R))
         goto fail;
-    serial_number[5] = i2c_read(0);
-    if (!sht2x_check_crc(&serial_number[5], 1, i2c_read(0)))
+    serial_number[5] = i2c_read(I2C_BUS, 0);
+    if (!sht2x_check_crc(&serial_number[5], 1, i2c_read(I2C_BUS, 0)))
         goto fail;
-    serial_number[4] = i2c_read(0);
-    if (!sht2x_check_crc(&serial_number[4], 1, i2c_read(0)))
+    serial_number[4] = i2c_read(I2C_BUS, 0);
+    if (!sht2x_check_crc(&serial_number[4], 1, i2c_read(I2C_BUS, 0)))
         goto fail;
-    serial_number[3] = i2c_read(0);
-    if (!sht2x_check_crc(&serial_number[3], 1, i2c_read(0)))
+    serial_number[3] = i2c_read(I2C_BUS, 0);
+    if (!sht2x_check_crc(&serial_number[3], 1, i2c_read(I2C_BUS, 0)))
         goto fail;
-    serial_number[2] = i2c_read(0);
-    if (!sht2x_check_crc(&serial_number[2], 1, i2c_read(1)))
+    serial_number[2] = i2c_read(I2C_BUS, 0);
+    if (!sht2x_check_crc(&serial_number[2], 1, i2c_read(I2C_BUS, 1)))
         goto fail;
-    i2c_stop();
+    i2c_stop(I2C_BUS);
 
-    i2c_start();
-    if (!i2c_write(I2C_ADR_W) ||
-        !i2c_write(0xFC) ||
-        !i2c_write(0xC9))
+    i2c_start(I2C_BUS);
+    if (!i2c_write(I2C_BUS, I2C_ADR_W) ||
+        !i2c_write(I2C_BUS, 0xFC) ||
+        !i2c_write(I2C_BUS, 0xC9))
         goto fail;
-    i2c_start();
-    if (!i2c_write(I2C_ADR_R))
+    i2c_start(I2C_BUS);
+    if (!i2c_write(I2C_BUS, I2C_ADR_R))
         goto fail;
     uint8_t data[2];
-    data[0] = i2c_read(0);
-    data[1] = i2c_read(0);
-    if (!sht2x_check_crc(data, 2, i2c_read(0)))
+    data[0] = i2c_read(I2C_BUS, 0);
+    data[1] = i2c_read(I2C_BUS, 0);
+    if (!sht2x_check_crc(data, 2, i2c_read(I2C_BUS, 0)))
         goto fail;
     serial_number[1] = data[0];
     serial_number[0] = data[1];
-    data[0] = i2c_read(0);
-    data[1] = i2c_read(0);
-    if (!sht2x_check_crc(data, 2, i2c_read(1)))
+    data[0] = i2c_read(I2C_BUS, 0);
+    data[1] = i2c_read(I2C_BUS, 0);
+    if (!sht2x_check_crc(data, 2, i2c_read(I2C_BUS, 1)))
         goto fail;
     serial_number[7] = data[0];
     serial_number[6] = data[1];
-    i2c_stop();
+    i2c_stop(I2C_BUS);
 
     return true;
 
  fail:
-    i2c_stop();
+    i2c_stop(I2C_BUS);
     return false;
 }
 
@@ -196,29 +196,29 @@ static bool sht2x_get_serial_number(uint8_t *serial_number)
  */
 static uint8_t sht2x_measure_poll(int temp_rh, uint8_t data[], uint8_t *crc)
 {
-    i2c_start();
-    if (!i2c_write(I2C_ADR_W) ||
-        !i2c_write(temp_rh ? TRIG_RH_MEASUREMENT_POLL : TRIG_T_MEASUREMENT_POLL)) {
-        i2c_stop();
+    i2c_start(I2C_BUS);
+    if (!i2c_write(I2C_BUS, I2C_ADR_W) ||
+        !i2c_write(I2C_BUS, temp_rh ? TRIG_RH_MEASUREMENT_POLL : TRIG_T_MEASUREMENT_POLL)) {
+        i2c_stop(I2C_BUS);
         return 1;
     }
 
     int i = 0;
     int res;
     do {
-        i2c_start();
+        i2c_start(I2C_BUS);
         sdk_os_delay_us(10000);
-        res = i2c_write(I2C_ADR_R);
+        res = i2c_write(I2C_BUS, I2C_ADR_R);
         if (i++ >= 20) {
-            i2c_stop();
+            i2c_stop(I2C_BUS);
             return 1;
         }
     } while (res == 0);
 
-    data[0] = i2c_read(0);
-    data[1] = i2c_read(0);
-    *crc = i2c_read(1);
-    i2c_stop();
+    data[0] = i2c_read(I2C_BUS, 0);
+    data[1] = i2c_read(I2C_BUS, 0);
+    *crc = i2c_read(I2C_BUS, 1);
+    i2c_stop(I2C_BUS);
     return sht2x_check_crc(data, 2, *crc);
 }
 
