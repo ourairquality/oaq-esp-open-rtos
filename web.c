@@ -21,6 +21,7 @@
  */
 #include "espressif/esp_common.h"
 
+#include <unistd.h>
 #include <string.h>
 #include <time.h>
 #include <ctype.h>
