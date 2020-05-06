@@ -632,7 +632,7 @@ uint32_t init_flash()
     if (find_most_recent_sector(&flash_sector, &flash_index)) {
         /* Start the head at the next sector. */
         flash_sector++;
-        if (flash_sector > BUFFER_FLASH_FIRST_SECTOR + BUFFER_FLASH_NUM_SECTORS)
+        if (flash_sector >= BUFFER_FLASH_FIRST_SECTOR + BUFFER_FLASH_NUM_SECTORS)
             flash_sector = BUFFER_FLASH_FIRST_SECTOR;
         flash_index++;
     } else {
